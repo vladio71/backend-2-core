@@ -10,6 +10,10 @@ export interface ReportJobData {
   userId: string;
   failRate: number;
   requestId: string;
+  // W3C Trace Context запиту, який створив job: воркер продовжує той самий трейс (див. docs/tracing.md).
+  // Порожні, коли трейсинг вимкнено.
+  traceparent?: string;
+  tracestate?: string;
 }
 
 export interface EventJobData {

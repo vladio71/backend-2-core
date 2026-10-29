@@ -4,6 +4,7 @@
 // Хто викликає: ReportsController.
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
+import { context, propagation } from '@opentelemetry/api';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
 import { Repository } from 'typeorm';
@@ -37,9 +38,13 @@ export class ReportsService {
     // 1. Рядок у БД.
     const report = await this.reports.save(this.reports.create({ userId, failRate, status: 'queued' }));
     // 2. Job у чергу. jobId = id звіту, щоб повторний enqueue того самого звіту був неможливий.
+    // У data кладемо traceparent поточного HTTP-запиту: воркер в іншому процесі продовжить цей трейс.
+    // Без OTEL_EXPORTER_OTLP_ENDPOINT propagation.inject нічого не пише і carrier лишається порожнім.
+    const carrier: Record<string, string> = {};
+    propagation.inject(context.active(), carrier);
     await this.queue.add(
       'generate',
-      { reportId: report.id, userId, failRate, requestId: getRequestId() ?? 'no-request-id' },
+      { reportId: report.id, userId, failRate, requestId: getRequestId() ?? 'no-request-id', traceparent: carrier.traceparent, tracestate: carrier.tracestate },
       { jobId: report.id, attempts: 3, backoff: { type: 'exponential', delay: 500 }, removeOnComplete: 100, removeOnFail: 100 },
     );
     return { id: report.id, status: 'queued', statusUrl: `/reports/${report.id}`, eventsUrl: `/reports/${report.id}/events` };

@@ -15,8 +15,10 @@ docker compose up --build
 - http://localhost:8080/reference: документація API (Scalar), сирий OpenAPI на `/openapi.json`
 - http://localhost:8080/queues: Bull Board (черги)
 - http://localhost:8080/demo/live: демо-сторінка (логін, звіт з прогресом, хто онлайн, дошка). Відкрий у 3 вкладках.
+- http://localhost:16686: Jaeger, трейси запитів через API, воркер, Postgres і Redis (див. [docs/tracing.md](docs/tracing.md))
+- http://localhost:5173: навчальний фронтенд `learn/`. Сторінка на кожну тему: пояснення плюс живі панелі, де видно запит, відповідь, заголовки і час. Починати звідси. Без Docker: `cd learn && npm install && npm run dev` (див. [learn/README.md](learn/README.md))
 
-Compose піднімає `postgres` (pgvector), `redis`, `migrate` (міграції + сід), `api-1`, `api-2`, `worker`, `nginx` (round robin на обидва API). Сід створює `admin@devhub.local`, `olena@`, `taras@`, `iryna@devhub.local` з паролем `password123`, 30 постів, кредити, 200 000 подій.
+Compose піднімає `postgres` (pgvector), `redis`, `jaeger`, `migrate` (міграції + сід), `api-1`, `api-2`, `worker`, `nginx` (round robin на обидва API), `learn` (фронтенд). Сід створює `admin@devhub.local`, `olena@`, `taras@`, `iryna@devhub.local` з паролем `password123`, 30 постів, кредити, 200 000 подій.
 
 ## Запуск без Docker
 
@@ -56,7 +58,15 @@ scripts/smoke.sh             # прохід по всіх ендпоінтах
 | L | security | helmet, CORS, bcrypt, демо SQL-ін'єкції | [docs/modules/security.md](docs/modules/security.md) |
 | M | tests | unit / int / e2e, CI, деплой | [docs/testing.md](docs/testing.md), [docs/deploy.md](docs/deploy.md) |
 
-Усі ендпоінти: [docs/ENDPOINTS.md](docs/ENDPOINTS.md). Готові запити: `requests.http`.
+Усі ендпоінти: [docs/ENDPOINTS.md](docs/ENDPOINTS.md). Готові запити: `requests.http`. Трейсинг (OpenTelemetry, Jaeger): [docs/tracing.md](docs/tracing.md).
+
+## Карта залежностей
+
+![Граф модулів](docs/graphs/modules.svg)
+
+Кожен вузол це каталог `src/modules/<name>` (або окремий файл верхнього рівня), стрілка `A -> B` означає "файли з A імпортують щось із B": у кого найбільше вхідних стрілок (`config`, `logging`, `errors`, `auth`), той спільна основа, у кого лише вихідні (`main.ts`, `worker.ts`), той точка входу. Повний граф по файлах: [docs/graphs/files.svg](docs/graphs/files.svg); перегенерувати обидва: `npm run graph` і `npm run graph:files` (потрібен Graphviz, команда `dot` у PATH), перевірити правила (без циклів, `src` не імпортує `test`): `npm run deps:check`.
+
+Довідка по коду (Compodoc): `npm run docs:code`, потім відкрити `docs/compodoc/index.html` у браузері. Сторінка "Modules" показує для кожного Nest-модуля його controllers, providers і imports, тобто те, що `@Module({...})` збирає докупи, і з чого складається граф вище.
 
 ## Структура
 

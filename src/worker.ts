@@ -1,6 +1,8 @@
 // Що це: точка входу воркера. Окремий процес: npm run start:worker.
 // Чому: job-и (звіти по 5 с, пачки подій) не мають ділити event loop з HTTP.
 // Graceful shutdown: SIGTERM -> Nest закриває Worker-и BullMQ (чекають поточний job) -> БД -> Redis -> exit.
+// Перший import: трейсинг має запатчити pg/ioredis до того, як їх завантажить Nest (див. src/tracing.ts).
+import './tracing';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { WorkerModule } from './worker.module';

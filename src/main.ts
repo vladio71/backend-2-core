@@ -1,6 +1,8 @@
 // Що це: точка входу API. Створює Nest-застосунок, вмикає helmet, CORS, валідацію, фільтр помилок,
 // Swagger (/openapi.json) і Scalar (/reference), Redis-адаптер socket.io, graceful shutdown.
 // Хто викликає: npm start (node dist/main.js).
+// Перший import: трейсинг має запатчити http/express/pg/ioredis до того, як їх завантажить Nest (див. src/tracing.ts).
+import './tracing';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -20,7 +22,12 @@ async function bootstrap(): Promise<void> {
   const config = app.get<AppConfig>(APP_CONFIG);
 
   app.use(helmet({ contentSecurityPolicy: false })); // CSP вимкнено, бо Scalar і демо-сторінка вантажать скрипти з CDN
-  app.enableCors({ origin: config.CORS_ORIGINS.split(',').map((o) => o.trim()), credentials: true });
+  app.enableCors({
+    origin: config.CORS_ORIGINS.split(',').map((o) => o.trim()),
+    credentials: true,
+    // Без exposedHeaders браузер не дає JS читати нестандартні заголовки з іншого origin (learn/ на :5173).
+    exposedHeaders: ['X-Request-Id', 'X-Cache', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After'],
+  });
   setupApp(app, config.REDIS_URL);
   app.useStaticAssets(join(__dirname, '..', 'public'), { prefix: '/demo' });
 

@@ -1,0 +1,33 @@
+{
+  "name": "devhub-learn",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Інтерактивний фронтенд до навчального бекенду devhub: одна сторінка на тему, живі запити до API",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite --host --port 5173",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview --port 5173",
+    "lint": "eslint src",
+    "verify": "node scripts/verify.mjs"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router-dom": "6.30.6",
+    "socket.io-client": "4.8.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "5.2.0",
+    "eslint": "10.13.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1",
+    "vite": "6.4.5"
+  }
+}

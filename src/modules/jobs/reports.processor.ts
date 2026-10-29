@@ -4,6 +4,7 @@
 // Хто викликає: BullMQ Worker (створює @nestjs/bullmq за декоратором @Processor) у процесі src/worker.ts.
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Inject } from '@nestjs/common';
+import { context, propagation, trace, SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Job } from 'bullmq';
 import { Repository } from 'typeorm';
@@ -20,6 +21,7 @@ const STEPS = 5;
 @Processor(REPORTS_QUEUE, { concurrency: Number(process.env.WORKER_CONCURRENCY ?? 2) })
 export class ReportsProcessor extends WorkerHost {
   private readonly logger = new AppLogger('ReportsProcessor');
+  private readonly tracer = trace.getTracer('devhub-worker');
 
   constructor(
     @InjectRepository(Report) private readonly reports: Repository<Report>,
@@ -31,7 +33,25 @@ export class ReportsProcessor extends WorkerHost {
 
   async process(job: Job<ReportJobData>): Promise<Record<string, unknown>> {
     // requestId з job-у: логи воркера зв'язані з HTTP-запитом, який цей job створив.
-    return runWithRequestId(job.data.requestId, () => this.run(job));
+    // traceparent з job-у: span воркера стає дочірнім до span-у POST /reports, і в Jaeger це один трейс
+    // (HTTP-запит -> enqueue -> робота воркера -> SQL і Redis усередині). Без трейсингу все це no-op.
+    const parent = propagation.extract(context.active(), { traceparent: job.data.traceparent, tracestate: job.data.tracestate });
+    return this.tracer.startActiveSpan(
+      'reports.generate',
+      { kind: SpanKind.CONSUMER, attributes: { 'job.id': job.id ?? '', 'report.id': job.data.reportId, 'job.attempt': job.attemptsMade + 1 } },
+      parent,
+      async (span) => {
+        try {
+          return await runWithRequestId(job.data.requestId, () => this.run(job));
+        } catch (error) {
+          span.recordException(error instanceof Error ? error : new Error(String(error)));
+          span.setStatus({ code: SpanStatusCode.ERROR, message: error instanceof Error ? error.message : String(error) });
+          throw error;
+        } finally {
+          span.end();
+        }
+      },
+    );
   }
 
   private async run(job: Job<ReportJobData>): Promise<Record<string, unknown>> {
@@ -41,7 +61,14 @@ export class ReportsProcessor extends WorkerHost {
     await this.setStatus(reportId, userId, 'active', 0, attempt);
 
     for (let step = 1; step <= STEPS; step++) {
-      await sleep(this.config.REPORT_STEP_MS);
+      // Окремий span на кожен крок: у Jaeger видно, який саме крок звіту був довгим.
+      await this.tracer.startActiveSpan(`report.step ${step}`, async (stepSpan) => {
+        try {
+          await sleep(this.config.REPORT_STEP_MS);
+        } finally {
+          stepSpan.end();
+        }
+      });
       if (failRate > 0 && Math.random() < failRate) {
         throw new Error(`Імітація збою на кроці ${step}`);
       }

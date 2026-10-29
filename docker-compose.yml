@@ -1,5 +1,5 @@
-# Повний стенд: postgres (pgvector), redis, api-1, api-2, worker, nginx.
-# Запуск: docker compose up --build. Потім http://localhost:8080/reference, /queues, /demo/live.
+# Повний стенд: postgres (pgvector), redis, jaeger, api-1, api-2, worker, nginx.
+# Запуск: docker compose up --build. Потім http://localhost:8080/reference, /queues, /demo/live, трейси http://localhost:16686.
 # Міграції і сід запускає сервіс migrate один раз перед стартом API.
 
 x-app-env: &app-env
@@ -14,6 +14,8 @@ x-app-env: &app-env
   GITHUB_TOKEN: ${GITHUB_TOKEN:-}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   PGVECTOR: "1"
+  # Трейсинг: API і воркер шлють span-и у Jaeger по OTLP/HTTP (див. docs/tracing.md). Порожньо = трейсинг вимкнено.
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
 
 services:
   postgres:
@@ -46,6 +48,13 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+
+  # Jaeger v2 all-in-one: приймає OTLP на 4318 (HTTP) і 4317 (gRPC), UI на http://localhost:16686. Дані в пам'яті.
+  jaeger:
+    image: jaegertracing/jaeger:2.22.0
+    ports:
+      - "16686:16686"
+      - "4318:4318"
 
   # Одноразовий крок: міграції + сід. API стартують після його успішного завершення.
   migrate:
@@ -112,6 +121,16 @@ services:
     depends_on:
       api-1: { condition: service_healthy }
       api-2: { condition: service_healthy }
+
+  # Навчальний фронтенд: сторінка на кожну тему з живими запитами до API. http://localhost:5173
+  learn:
+    build:
+      context: ./learn
+      args: { VITE_API_URL: "http://localhost:8080" }
+    ports:
+      - "5173:5173"
+    depends_on:
+      nginx: { condition: service_started }
 
 volumes:
   pgdata:
