@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>devhub live demo</title>
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --line: #d9dde3; --text: #1b1f24; --muted: #5b6470; --accent: #2457d6; }
+  body { margin: 0; font: 15px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+  section.wide { grid-column: 1 / -1; }
+  h1 { grid-column: 1 / -1; font-size: 20px; margin: 8px 0 0; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  input, button, select { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; }
+  button { background: var(--accent); color: #fff; border-color: var(--accent); cursor: pointer; }
+  button.secondary { background: #fff; color: var(--text); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .bar { height: 14px; background: #e6e9ee; border-radius: 7px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  canvas { border: 1px solid var(--line); border-radius: 6px; width: 100%; touch-action: none; background: #fff; }
+  ul { margin: 0; padding-left: 18px; }
+  pre { background: #f0f2f5; padding: 8px; border-radius: 6px; max-height: 160px; overflow: auto; font-size: 12px; margin: 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  td, th { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>devhub: live demo <span class="muted" id="instance"></span></h1>
+
+  <section>
+    <h2>1. Логін</h2>
+    <div class="row">
+      <input id="email" value="olena@devhub.local" placeholder="email">
+      <input id="password" type="password" value="password123" placeholder="пароль">
+      <button id="loginBtn">Увійти</button>
+    </div>
+    <div class="muted" id="loginStatus">Не залогінений. Після логіну відкривається WebSocket /live.</div>
+  </section>
+
+  <section>
+    <h2>2. Хто онлайн (presence)</h2>
+    <ul id="online"><li class="muted">...</li></ul>
+    <div class="muted">Відкрий цю сторінку у 3 вкладках. Список однаковий у всіх, навіть якщо вкладки на різних інстансах API.</div>
+  </section>
+
+  <section class="wide">
+    <h2>3. Звіт: polling vs SSE vs WebSocket</h2>
+    <div class="row">
+      <label>failRate <input id="failRate" type="number" min="0" max="1" step="0.1" value="0" style="width:70px"></label>
+      <button id="startBtn" disabled>Запустити звіт</button>
+      <span class="muted" id="reportId"></span>
+    </div>
+    <table>
+      <thead><tr><th>Канал</th><th>Прогрес</th><th>Статус</th><th>HTTP-запитів</th><th>Повідомлень</th></tr></thead>
+      <tbody>
+        <tr><td>Polling (GET /reports/:id кожні 500 мс)</td><td><div class="bar"><div id="barPoll"></div></div></td><td id="stPoll">-</td><td id="reqPoll">0</td><td id="msgPoll">0</td></tr>
+        <tr><td>SSE (GET /reports/:id/events)</td><td><div class="bar"><div id="barSse"></div></div></td><td id="stSse">-</td><td id="reqSse">0</td><td id="msgSse">0</td></tr>
+        <tr><td>WebSocket (подія report:progress)</td><td><div class="bar"><div id="barWs"></div></div></td><td id="stWs">-</td><td id="reqWs">0</td><td id="msgWs">0</td></tr>
+      </tbody>
+    </table>
+    <div class="muted">Polling робить новий HTTP-запит щоразу. SSE: один запит, сервер пише в нього. WebSocket: одне з'єднання на все (вже відкрите для presence і дошки), 0 додаткових запитів.</div>
+  </section>
+
+  <section class="wide">
+    <h2>4. Дошка для малювання (board)</h2>
+    <div class="row">
+      <label>Колір <input id="color" type="color" value="#2457d6"></label>
+      <button id="clearBtn" class="secondary">Очистити для всіх</button>
+      <span class="muted">Точки збираються 16 мс і відправляються однією подією board:draw.</span>
+    </div>
+    <canvas id="board" width="1000" height="400"></canvas>
+  </section>
+
+  <section class="wide">
+    <h2>Лог подій</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js" crossorigin="anonymous"></script>
+<script>
+  // Один файл, без фреймворку. Весь клієнтський код нижче.
+  var state = { token: null, user: null, socket: null, reportId: null, pollTimer: null, sse: null };
+  var counters = { reqPoll: 0, msgPoll: 0, reqSse: 0, msgSse: 0, reqWs: 0, msgWs: 0 };
+
+  function $(id) { return document.getElementById(id); }
+  function log(msg) {
+    var pre = $('log');
+    pre.textContent = new Date().toISOString().slice(11, 23) + ' ' + msg + '\n' + pre.textContent;
+  }
+  function bump(key) { counters[key] += 1; $(key).textContent = counters[key]; }
+  function setProgress(channel, event) {
+    $('bar' + channel).style.width = (event.progress || 0) + '%';
+    $('st' + channel).textContent = event.status + (event.attempt ? ' (спроба ' + event.attempt + ')' : '') + (event.error ? ': ' + event.error : '');
+  }
+
+  async function api(method, path, body) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (state.token) headers.Authorization = 'Bearer ' + state.token;
+    var res = await fetch(path, { method: method, headers: headers, body: body ? JSON.stringify(body) : undefined });
+    var data = await res.json().catch(function () { return null; });
+    if (!res.ok) throw new Error((data && data.message) || res.statusText);
+    return data;
+  }
+
+  // ---- 1. Логін і WebSocket ----
+  $('loginBtn').onclick = async function () {
+    try {
+      var data = await api('POST', '/auth/login', { email: $('email').value, password: $('password').value });
+      state.token = data.tokens.accessToken;
+      state.user = data.user;
+      $('loginStatus').textContent = 'Залогінений як ' + data.user.displayName + ' (' + data.user.role + ')';
+      $('startBtn').disabled = false;
+      connectSocket();
+    } catch (err) { $('loginStatus').textContent = 'Помилка: ' + err.message; }
+  };
+
+  function connectSocket() {
+    if (state.socket) state.socket.disconnect();
+    // JWT у handshake.auth: сервер перевіряє його в handleConnection і одразу відключає чужих.
+    state.socket = io('/live', { auth: { token: state.token, displayName: state.user.displayName }, transports: ['websocket'] });
+    state.socket.on('connect', function () { log('WS підключено, id=' + state.socket.id); });
+    state.socket.on('disconnect', function (reason) { log('WS відключено: ' + reason); });
+    state.socket.on('presence:update', function (data) {
+      $('instance').textContent = '(інстанс: ' + data.instance + ')';
+      $('online').innerHTML = data.online.map(function (u) { return '<li>' + u.displayName + '</li>'; }).join('') || '<li class="muted">нікого</li>';
+    });
+    state.socket.on('report:progress', function (event) {
+      if (event.reportId !== state.reportId) return;
+      bump('msgWs');
+      setProgress('Ws', event);
+    });
+    state.socket.on('board:history', function (strokes) { clearCanvas(); strokes.forEach(drawStroke); log('board:history: ' + strokes.length + ' штрихів'); });
+    state.socket.on('board:draw', drawStroke);
+    state.socket.on('board:clear', clearCanvas);
+  }
+
+  // ---- 3. Звіт: три канали на один job ----
+  $('startBtn').onclick = async function () {
+    stopChannels();
+    ['Poll', 'Sse', 'Ws'].forEach(function (c) { setProgress(c, { status: 'queued', progress: 0 }); });
+    Object.keys(counters).forEach(function (k) { counters[k] = 0; $(k).textContent = '0'; });
+    var accepted = await api('POST', '/reports', { failRate: Number($('failRate').value) });
+    state.reportId = accepted.id;
+    $('reportId').textContent = accepted.id;
+    log('POST /reports -> 202 ' + accepted.id);
+
+    // Polling: запит кожні 500 мс, поки не completed/failed.
+    state.pollTimer = setInterval(async function () {
+      bump('reqPoll');
+      var r = await api('GET', '/reports/' + accepted.id);
+      bump('msgPoll');
+      setProgress('Poll', r);
+      if (r.status === 'completed' || r.status === 'failed') { clearInterval(state.pollTimer); state.pollTimer = null; }
+    }, 500);
+
+    // SSE: один запит, сервер пише події. EventSource не вміє заголовки, тому токен у query.
+    bump('reqSse');
+    state.sse = new EventSource('/reports/' + accepted.id + '/events?token=' + encodeURIComponent(state.token));
+    state.sse.onmessage = function (e) {
+      var event = JSON.parse(e.data);
+      bump('msgSse');
+      setProgress('Sse', event);
+      if (event.status === 'completed' || event.status === 'failed') { state.sse.close(); state.sse = null; }
+    };
+    state.sse.onerror = function () { if (state.sse) { state.sse.close(); state.sse = null; } };
+  };
+
+  function stopChannels() {
+    if (state.pollTimer) clearInterval(state.pollTimer);
+    if (state.sse) state.sse.close();
+    state.pollTimer = null; state.sse = null;
+  }
+
+  // ---- 4. Дошка ----
+  var canvas = $('board');
+  var ctx = canvas.getContext('2d');
+  var drawing = false;
+  var pending = [];
+  var flushTimer = null;
+
+  function pos(e) {
+    var rect = canvas.getBoundingClientRect();
+    var scaleX = canvas.width / rect.width;
+    var scaleY = canvas.height / rect.height;
+    return { x: Math.round((e.clientX - rect.left) * scaleX), y: Math.round((e.clientY - rect.top) * scaleY) };
+  }
+  function drawStroke(stroke) {
+    if (!stroke.points || stroke.points.length === 0) return;
+    ctx.strokeStyle = stroke.color || '#000';
+    ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+    for (var i = 1; i < stroke.points.length; i++) ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+    if (stroke.points.length === 1) ctx.lineTo(stroke.points[0].x + 0.5, stroke.points[0].y);
+    ctx.stroke();
+  }
+  function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+
+  // Батчинг на клієнті: точки накопичуються і йдуть на сервер раз на 16 мс (один кадр).
+  function flush() {
+    flushTimer = null;
+    if (pending.length < 2 || !state.socket) { return; }
+    var stroke = { color: $('color').value, points: pending };
+    state.socket.emit('board:draw', stroke);
+    // Останню точку лишаємо, щоб наступний сегмент починався з неї без розриву.
+    pending = [pending[pending.length - 1]];
+  }
+  canvas.addEventListener('pointerdown', function (e) { drawing = true; pending = [pos(e)]; });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!drawing) return;
+    var p = pos(e);
+    var prev = pending[pending.length - 1];
+    drawStroke({ color: $('color').value, points: [prev, p] });
+    pending.push(p);
+    if (!flushTimer) flushTimer = setTimeout(flush, 16);
+  });
+  function stop() { if (!drawing) return; drawing = false; flush(); pending = []; }
+  canvas.addEventListener('pointerup', stop);
+  canvas.addEventListener('pointerleave', stop);
+  $('clearBtn').onclick = function () { if (state.socket) state.socket.emit('board:clear'); };
+</script>
+</body>
+</html>

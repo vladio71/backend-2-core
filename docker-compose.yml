@@ -1,0 +1,117 @@
+# Повний стенд: postgres (pgvector), redis, api-1, api-2, worker, nginx.
+# Запуск: docker compose up --build. Потім http://localhost:8080/reference, /queues, /demo/live.
+# Міграції і сід запускає сервіс migrate один раз перед стартом API.
+
+x-app-env: &app-env
+  NODE_ENV: development
+  DATABASE_URL: postgres://devhub:devhub@postgres:5432/devhub
+  REDIS_URL: redis://redis:6379
+  JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me-0123456789}
+  CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+  DB_POOL_MAX: ${DB_POOL_MAX:-10}
+  QUEUE_MAX_WAITING: ${QUEUE_MAX_WAITING:-100}
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+  GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  PGVECTOR: "1"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: devhub
+      POSTGRES_PASSWORD: devhub
+      POSTGRES_DB: devhub
+      # Усі сесії в UTC (дублює options у коді, щоб psql теж показував UTC).
+      TZ: UTC
+      PGTZ: UTC
+    command: ["postgres", "-c", "max_connections=100", "-c", "timezone=UTC"]
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devhub -d devhub"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Одноразовий крок: міграції + сід. API стартують після його успішного завершення.
+  migrate:
+    build:
+      context: .
+      target: build
+    environment:
+      <<: *app-env
+    command: ["sh", "-c", "npx tsx node_modules/typeorm/cli.js -d src/data-source.ts migration:run && npx tsx scripts/seed.ts"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  api-1:
+    build:
+      context: .
+      args: { ENTRYPOINT: main.js }
+    environment:
+      <<: *app-env
+      INSTANCE_NAME: api-1
+      PORT: 3000
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api-2:
+    build:
+      context: .
+      args: { ENTRYPOINT: main.js }
+    environment:
+      <<: *app-env
+      INSTANCE_NAME: api-2
+      PORT: 3000
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    build:
+      context: .
+      args: { ENTRYPOINT: worker.js }
+    environment:
+      <<: *app-env
+      INSTANCE_NAME: worker
+    # Graceful shutdown: compose шле SIGTERM, даємо 30 с дочекатися поточного job-у.
+    stop_grace_period: 30s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api-1: { condition: service_healthy }
+      api-2: { condition: service_healthy }
+
+volumes:
+  pgdata:

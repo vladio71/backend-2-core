@@ -1,0 +1,27 @@
+name: Deploy
+
+# Після успішного CI на main: ssh на сервер, git pull, docker compose up -d --build.
+# Секрети репозиторію: SSH_HOST, SSH_USER, SSH_KEY (приватний ключ), APP_DIR (необов'язково, типово ~/devhub).
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.APP_DIR || '~/devhub' }}
+            git pull --ff-only
+            docker compose up -d --build --remove-orphans
+            docker image prune -f

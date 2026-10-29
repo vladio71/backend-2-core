@@ -1,0 +1,183 @@
+# Запити для VS Code REST Client / JetBrains HTTP Client. Спочатку виконай login і скопіюй accessToken у @token.
+@base = http://localhost:3000
+@token = PASTE_ACCESS_TOKEN
+@refresh = PASTE_REFRESH_TOKEN
+@postId = PASTE_POST_ID
+@reportId = PASTE_REPORT_ID
+
+### health
+GET {{base}}/health
+
+### register
+POST {{base}}/auth/register
+Content-Type: application/json
+
+{ "email": "me@devhub.local", "password": "password123", "displayName": "Me" }
+
+### login (seed: admin@devhub.local / olena@devhub.local / taras@devhub.local / iryna@devhub.local, пароль password123)
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "admin@devhub.local", "password": "password123" }
+
+### me
+GET {{base}}/auth/me
+Authorization: Bearer {{token}}
+
+### refresh (ротація: старий токен більше не працює)
+POST {{base}}/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{refresh}}" }
+
+### logout
+POST {{base}}/auth/logout
+Content-Type: application/json
+
+{ "refreshToken": "{{refresh}}" }
+
+### create post (likes "42" -> 42, вкладене meta.seo)
+POST {{base}}/posts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "title": "Мій перший пост", "body": "Текст про postgres", "tags": ["postgres"], "likes": "42", "meta": { "seo": { "title": "seo title" } } }
+
+### create post with unknown field -> 400 з назвою поля
+POST {{base}}/posts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "title": "abc", "body": "x", "hacker": true }
+
+### list: offset
+GET {{base}}/posts?page=1&pageSize=5&sort=likes&dir=desc&status=published
+
+### list: cursor (візьми nextCursor з відповіді і підстав у cursor=)
+GET {{base}}/posts?mode=cursor&pageSize=5&sort=createdAt&dir=desc
+
+### list: filters
+GET {{base}}/posts?q=postgres&tags=node,postgres&tagsMode=any&dateFrom=2026-01-01T00:00:00Z
+
+### get one
+GET {{base}}/posts/{{postId}}
+
+### update
+PATCH {{base}}/posts/{{postId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "likes": 7 }
+
+### publish (транзакція: posts + activity)
+POST {{base}}/posts/{{postId}}/publish
+Authorization: Bearer {{token}}
+
+### soft delete
+DELETE {{base}}/posts/{{postId}}
+Authorization: Bearer {{token}}
+
+### restore
+POST {{base}}/posts/{{postId}}/restore
+Authorization: Bearer {{token}}
+
+### stats (X-Cache: MISS, потім HIT)
+GET {{base}}/posts/{{postId}}/stats
+
+### moderate (LLM, фейк без OPENAI_API_KEY)
+POST {{base}}/posts/{{postId}}/moderate
+Authorization: Bearer {{token}}
+
+### similar (потрібен pgvector)
+GET {{base}}/posts/similar?q=postgres pool
+
+### raw SQL report
+GET {{base}}/reports/posts-per-day?days=60
+
+### N+1
+GET {{base}}/demo/n-plus-one?fixed=false
+
+### N+1 fixed
+GET {{base}}/demo/n-plus-one?fixed=true
+
+### EXPLAIN без індексу
+GET {{base}}/demo/explain?indexed=false
+
+### EXPLAIN з індексом
+GET {{base}}/demo/explain?indexed=true
+
+### pool stats
+GET {{base}}/demo/pool/stats
+
+### pool slow (DB_POOL_MAX=10, n=20: запити 11-20 чекають)
+GET {{base}}/demo/pool/slow?seconds=2&n=20
+
+### credits: me
+GET {{base}}/credits/me
+Authorization: Bearer {{token}}
+
+### credits: topup (admin)
+POST {{base}}/credits/topup
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "userId": "PASTE_USER_ID", "amount": 50 }
+
+### credits: reserve
+POST {{base}}/credits/reserve
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "amount": 10 }
+
+### credits: confirm
+POST {{base}}/credits/reservations/PASTE_RESERVATION_ID/confirm
+Authorization: Bearer {{token}}
+
+### credits: release
+POST {{base}}/credits/reservations/PASTE_RESERVATION_ID/release
+Authorization: Bearer {{token}}
+
+### throttler demo
+GET {{base}}/demo/throttled
+
+### github import
+POST {{base}}/github/import
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "username": "vladio71" }
+
+### github repos
+GET {{base}}/github/repos/vladio71
+
+### report: create (202)
+POST {{base}}/reports
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "failRate": 0 }
+
+### report: status (polling)
+GET {{base}}/reports/{{reportId}}
+Authorization: Bearer {{token}}
+
+### report: SSE
+GET {{base}}/reports/{{reportId}}/events
+Authorization: Bearer {{token}}
+
+### queue stats
+GET {{base}}/reports/queue-stats
+
+### event (батчинг у воркері)
+POST {{base}}/events
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "type": "click", "payload": { "button": "buy" } }
+
+### sql injection (тільки NODE_ENV=development)
+GET {{base}}/demo/sql-injection?safe=false&q=%27%20OR%201%3D1%20--
+
+### sql injection safe
+GET {{base}}/demo/sql-injection?safe=true&q=%27%20OR%201%3D1%20--

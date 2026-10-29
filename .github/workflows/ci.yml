@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: devhub
+          POSTGRES_PASSWORD: devhub
+          POSTGRES_DB: devhub_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U devhub"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://devhub:devhub@localhost:5432/devhub_test
+      REDIS_URL: redis://localhost:6379/1
+      JWT_SECRET: ci-secret-0123456789abcdef
+      QUEUE_MAX_WAITING: "3"
+      REPORT_STEP_MS: "50"
+      PGVECTOR: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+      - run: npm run test:int
+      - run: npm run test:e2e
