@@ -12,6 +12,8 @@ export const configSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   INSTANCE_NAME: z.string().default('api'),
+  // Порт сервера /metrics у воркері (у API метрики на тому самому PORT). Prometheus ходить на worker:9464.
+  METRICS_PORT: z.coerce.number().int().min(1).max(65535).default(9464),
 
   // Обов'язкові. Без них застосунок не стартує (див. loadConfig).
   DATABASE_URL: z.string().min(1),

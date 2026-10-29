@@ -1,0 +1,28 @@
+# Promtail читає stdout/stderr усіх контейнерів цього compose через docker.sock і шле їх у Loki.
+# Кожен рядок отримує label service = ім'я сервісу у docker-compose.yml (api-1, api-2, worker, nginx, ...).
+# Наш логер пише один JSON на рядок (див. src/modules/logging/app-logger.ts), тому у Grafana запит
+# {service="api-1"} |= "<requestId>" знаходить усі рядки одного запиту, а | json розбирає поля (level, msg, context).
+server:
+  http_listen_port: 9080
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        # Лише контейнери цього compose-проєкту (label ставить сам compose).
+        filters:
+          - name: label
+            values: ['com.docker.compose.project']
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container

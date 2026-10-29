@@ -6,6 +6,7 @@ Auth: `Bearer` означає заголовок `Authorization: Bearer <accessT
 | Метод | Шлях | Auth | Що |
 |---|---|---|---|
 | GET | /health | ні | статус Postgres і Redis, 503 якщо щось лежить |
+| GET | /metrics | ні | метрики для Prometheus текстом (у воркері те саме на порту 9464), див. docs/observability.md |
 | GET | /openapi.json | ні | OpenAPI-документ |
 | GET | /reference | ні | Scalar UI |
 | GET | /queues | development: ні, інакше JWT admin у `?token=` | Bull Board |

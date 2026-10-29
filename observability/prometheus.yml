@@ -1,0 +1,25 @@
+# Prometheus для devhub: раз на 5 с читає /metrics з api-1, api-2 (порт 3000, Nest) і worker (порт 9464, окремий сервер).
+# Label service підписує, з якого процесу числа: у Grafana це окремі лінії api-1 / api-2 / worker.
+# Запуск: docker compose --profile observability up --build. UI: http://localhost:9090 (вкладка Graph, спробуй http_requests_total).
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: devhub-api
+    static_configs:
+      - targets: ['api-1:3000']
+        labels: { service: api-1 }
+      - targets: ['api-2:3000']
+        labels: { service: api-2 }
+
+  - job_name: devhub-worker
+    static_configs:
+      - targets: ['worker:9464']
+        labels: { service: worker }
+
+  # Сам Prometheus, щоб було видно, що scrape працює (up == 1).
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+        labels: { service: prometheus }

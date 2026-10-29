@@ -8,6 +8,9 @@
 ### health
 GET {{base}}/health
 
+### metrics (Prometheus, текст). Воркер: http://localhost:9464/metrics
+GET {{base}}/metrics
+
 ### register
 POST {{base}}/auth/register
 Content-Type: application/json

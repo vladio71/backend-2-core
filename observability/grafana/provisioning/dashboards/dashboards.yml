@@ -1,0 +1,11 @@
+# Дашборди з каталогу /var/lib/grafana/dashboards (змонтовано з observability/grafana/dashboards).
+# Правки у JSON підхоплюються без перезапуску (updateIntervalSeconds).
+apiVersion: 1
+providers:
+  - name: devhub
+    folder: ''
+    type: file
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

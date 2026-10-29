@@ -23,6 +23,7 @@ import { GithubModule } from './modules/github/github.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { LiveModule } from './modules/live/live.module';
 import { SecurityModule } from './modules/security/security.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
 import { loadConfig } from './modules/config/config.module';
 import { redisConnectionFromUrl } from './modules/redis/redis-connection';
 
@@ -38,6 +39,7 @@ import { redisConnectionFromUrl } from './modules/redis/redis-connection';
       useFactory: (config: AppConfig) => ({ connection: redisConnectionFromUrl(config.REDIS_URL), prefix: 'devhub' }),
     }),
     HealthModule,
+    MetricsModule, // GET /metrics для Prometheus і лічильники HTTP (див. docs/observability.md)
     UsersModule,
     AuthModule,
     QueriesModule, // /reports/posts-per-day перед /reports/:id (JobsModule)

@@ -1,6 +1,9 @@
 # Повний стенд: postgres (pgvector), redis, jaeger, api-1, api-2, worker, nginx.
 # Запуск: docker compose up --build. Потім http://localhost:8080/reference, /queues, /demo/live, трейси http://localhost:16686.
 # Міграції і сід запускає сервіс migrate один раз перед стартом API.
+# Профіль observability (prometheus, loki, promtail, grafana) вмикається окремо:
+#   docker compose --profile observability up --build   -> Grafana http://localhost:3001, Prometheus http://localhost:9090
+# Без --profile ці чотири сервіси не стартують, звичайний docker compose up --build працює як і раніше. Див. docs/observability.md.
 
 x-app-env: &app-env
   NODE_ENV: development
@@ -131,6 +134,58 @@ services:
       - "5173:5173"
     depends_on:
       nginx: { condition: service_started }
+
+  # ---------- Профіль observability: метрики, логи, дашборд. Див. docs/observability.md ----------
+  # Prometheus раз на 5 с читає /metrics з api-1:3000, api-2:3000 і worker:9464 (observability/prometheus.yml).
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    profiles: [observability]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=2d"]
+    depends_on:
+      api-1: { condition: service_healthy }
+      api-2: { condition: service_healthy }
+
+  # Loki зберігає логи. Конфіг стандартний з образу (один процес, файли у контейнері, без зовнішнього сховища).
+  loki:
+    image: grafana/loki:3.6.11
+    profiles: [observability]
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+
+  # Promtail читає stdout/stderr усіх контейнерів через docker.sock і шле у Loki з label service=<ім'я сервісу compose>.
+  promtail:
+    image: grafana/promtail:3.6.11
+    profiles: [observability]
+    volumes:
+      - ./observability/promtail.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: ["-config.file=/etc/promtail/config.yml"]
+    depends_on:
+      loki: { condition: service_started }
+
+  # Grafana: admin/admin, анонімний перегляд увімкнено, джерела даних і дашборд devhub підхоплюються з observability/grafana.
+  # Порт 3001, бо 3000 зайнятий API.
+  grafana:
+    image: grafana/grafana:13.2.5
+    profiles: [observability]
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: light
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus: { condition: service_started }
+      loki: { condition: service_started }
+      jaeger: { condition: service_started }
 
 volumes:
   pgdata:

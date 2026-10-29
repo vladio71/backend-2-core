@@ -15,6 +15,7 @@ import { APP_CONFIG } from '../config/config.module';
 import { AppConfig } from '../config/config.schema';
 import { AppLogger } from '../logging/app-logger';
 import { runWithRequestId } from '../logging/request-context';
+import { MetricsService } from '../metrics/metrics.service';
 
 const STEPS = 5;
 
@@ -27,6 +28,8 @@ export class ReportsProcessor extends WorkerHost {
     @InjectRepository(Report) private readonly reports: Repository<Report>,
     private readonly events: ReportEventsService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    // Глобальний модуль метрик (MetricsWorkerModule у воркері, MetricsModule у e2e-тестах).
+    private readonly metrics: MetricsService,
   ) {
     super();
   }
@@ -80,6 +83,8 @@ export class ReportsProcessor extends WorkerHost {
     await this.reports.update({ id: reportId }, { status: 'completed', progress: 100, result, error: null, attempts: attempt });
     await this.events.publish({ reportId, userId, status: 'completed', progress: 100, attempt, result, at: new Date().toISOString() });
     this.logger.info(`Звіт ${reportId}: готово`);
+    // reports_processed_total{status="completed"}: Grafana показує "звітів за хвилину" з цього лічильника.
+    this.metrics.reportsProcessed.inc({ status: 'completed' });
     return result;
   }
 
@@ -91,6 +96,8 @@ export class ReportsProcessor extends WorkerHost {
     const exhausted = job.attemptsMade >= maxAttempts;
     // Не остання спроба: BullMQ сам поставить job у чергу з backoff. Остання: фіксуємо failed з текстом помилки.
     const status: ReportStatus = exhausted ? 'failed' : 'queued';
+    // Рахуємо лише остаточний failed: невдала спроба з retry попереду це ще не втрачений звіт.
+    if (exhausted) this.metrics.reportsProcessed.inc({ status: 'failed' });
     this.logger.warn(`Звіт ${reportId}: спроба ${job.attemptsMade}/${maxAttempts} упала: ${error.message}`);
     await this.reports.update({ id: reportId }, { status, error: error.message, attempts: job.attemptsMade });
     await this.events.publish({ reportId, userId, status, progress: 0, attempt: job.attemptsMade, error: error.message, at: new Date().toISOString() });
