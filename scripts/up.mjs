@@ -12,7 +12,9 @@ import { existsSync, copyFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 
 const PROJECT = 'backend-2-core';
+// health також перевіряється у SMOKE нижче.
 const HEALTH_URL = 'http://localhost:8080/health';
+void HEALTH_URL;
 const SMOKE = [["health через nginx", "http://localhost:8080/health", {"status": 200, "includes": "ok"}], ["список постів (без токена має бути 401)", "http://localhost:8080/posts", {"status": 401}], ["контракт API", "http://localhost:8080/reference", {"status": 200}], ["learn", "http://localhost:5173/", {"status": 200, "includes": "<div id=\"root\""}]]; // [назва, url, що очікуємо]
 const OPEN = [["learn: сторінка на кожну тему, починати звідси", "http://localhost:5173"], ["контракт API", "http://localhost:8080/reference"], ["Bull Board, черги", "http://localhost:8080/queues"], ["жива демо-сторінка, відкрити в 3 вкладках", "http://localhost:8080/demo/live"], ["Jaeger, трейси", "http://localhost:16686"], ["Grafana (тільки з --observability), admin/admin", "http://localhost:3001"]];   // [назва, url]
 const PROFILES = {"--observability": "observability"}; // прапорець -> профіль compose
@@ -48,7 +50,7 @@ function ensureEnv() {
 function stopOtherProjects() {
   const r = run('docker', ['compose', 'ls', '--format', 'json', '--all']);
   if (r.status !== 0) return;
-  let list = [];
+  let list;
   try { list = JSON.parse(r.stdout || '[]'); } catch { return; }
   for (const p of list) {
     const name = p.Name || '';

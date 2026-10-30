@@ -82,6 +82,7 @@
     "@types/supertest": "7.2.1",
     "dependency-cruiser": "18.7.0",
     "eslint": "10.13.0",
+    "globals": "^15.15.0",
     "jest": "30.5.2",
     "socket.io-client": "4.8.3",
     "supertest": "7.3.1",
