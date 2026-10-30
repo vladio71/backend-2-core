@@ -39,3 +39,5 @@ REPORT_STEP_MS=50
 2. Soft delete ховає пост зі списку, але рядок лишається з `deleted_at`.
 
 Підказки: `t.http()`, `bearer(user)`, `t.dataSource.query(...)`. Подивись сусідні файли.
+
+Попередня тема: [health](modules/health.md) | Наступна тема: [credits](modules/credits.md)

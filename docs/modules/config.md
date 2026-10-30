@@ -31,3 +31,5 @@ constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
 ## Спробуй сам
 1. Прибери `JWT_SECRET` з `.env` і запусти `npm run dev`. Прочитай повідомлення. Поверни назад.
 2. Додай змінну `MAX_POST_TAGS` (число, типово 10) у схему і використай її у `CreatePostDto` замість `@ArrayMaxSize(10)`.
+
+Попередня тема: [auth](auth.md) | Наступна тема: [errors](errors.md)

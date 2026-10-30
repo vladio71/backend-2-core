@@ -82,3 +82,5 @@ Label `route` це шаблон маршруту (`/posts/:id`), а не сир�
 - **На дашборді No data.** Трафіку ще не було, або дашборд дивиться на останні 15 хв до старту. Зробити кілька запитів і почекати 5-10 с (scrape раз на 5 с).
 - **Панель логів порожня.** Promtail потребує `/var/run/docker.sock`; на Mac і Windows з Docker Desktop це працює, на rootless Docker шлях інший. Перевірити: `docker compose logs promtail`.
 - **Чи це замінює Jaeger?** Ні. Grafana має джерело даних Jaeger (Explore -> Jaeger), але дашборд показує метрики і логи; трейси зручніше дивитись у Jaeger UI.
+
+Попередня тема: [security](modules/security.md) | Наступна тема: [трейсинг](tracing.md)

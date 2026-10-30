@@ -1,3 +1,5 @@
 node_modules
 dist
 .env
+# копія docs/architecture.excalidraw, яку робить npm run scheme (prebuild/predev); джерело в docs/
+public/architecture.excalidraw

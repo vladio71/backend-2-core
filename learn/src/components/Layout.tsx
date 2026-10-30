@@ -4,6 +4,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { probe, setBaseUrl, useBaseUrl } from '../api/baseUrl';
 import { clearAuth, useAuth } from '../api/auth';
 import { PAGES } from '../pages';
+import { PageNav } from './PageNav';
 
 export function Layout() {
   const base = useBaseUrl();
@@ -71,6 +72,7 @@ export function Layout() {
       </nav>
       <main className="content">
         <Outlet />
+        <PageNav />
       </main>
     </div>
   );

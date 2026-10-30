@@ -1,0 +1,10 @@
+# Спільний для Dockerfile (API, воркер) і learn/Dockerfile: обидва збираються з кореня репозиторію.
+node_modules
+learn/node_modules
+dist
+learn/dist
+learn/screenshots
+learn/public/architecture.excalidraw
+docs/compodoc
+.git
+.env

@@ -15,3 +15,5 @@
 ## Спробуй сам
 1. У psql виконай `SET TimeZone='Europe/Kyiv'; SELECT created_at FROM posts LIMIT 1;` і порівняй з `UTC`. Рядок у БД той самий.
 2. Додай у `posts-per-day` параметр `tz` і групуй по `date_trunc('day', created_at AT TIME ZONE $tz)`. Перевір, що межа дня змістилась.
+
+Попередня тема: [migrations](migrations.md) | Наступна тема: [queries](queries.md)

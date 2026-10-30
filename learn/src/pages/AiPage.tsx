@@ -86,7 +86,7 @@ export function AiPage() {
 
   return (
     <>
-      <PageTitle title="AI" sub="Структурований вихід LLM через zod і векторний пошук через pgvector" />
+      <PageTitle title="AI: LLM і вектори" sub="Структурований вихід LLM через zod і векторний пошук через pgvector" />
       <Explain>
         <p>
           <b>Як це працює на бекенді.</b> <code>POST /posts/:id/moderate</code> відправляє LLM system prompt і текст поста, отримує текст і парсить його

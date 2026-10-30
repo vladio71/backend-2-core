@@ -31,7 +31,7 @@ export function NeedAuth({ children }: { children?: ReactNode }) {
   if (auth.tokens) return null;
   return (
     <div className="note">
-      Для цих запитів потрібен Bearer-токен. Залогінься на сторінці <Link to="/">Старт</Link>. {children}
+      Для цих запитів потрібен Bearer-токен. Залогінься на сторінці <Link to="/start">Старт</Link>. {children}
     </div>
   );
 }

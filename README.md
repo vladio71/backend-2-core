@@ -52,28 +52,28 @@ scripts/smoke.sh             # прохід по всіх ендпоінтах
 
 ## Карта модулів
 
-| Глава | Модуль | Що показує | Docs |
-|---|---|---|---|
-| A | config | env через zod, падіння на старті з ясним текстом | [docs/modules/config.md](docs/modules/config.md) |
-| A | errors | одна форма помилки, таблиця кодів 400..502 | [docs/modules/errors.md](docs/modules/errors.md) |
-| A | logging | X-Request-Id, JSON-логер, requestId у воркері | [docs/modules/logging.md](docs/modules/logging.md) |
-| A | health | GET /health по кожній залежності | [docs/modules/health.md](docs/modules/health.md) |
-| A | shutdown | SIGTERM: дочекатись job, закрити пул і Redis | [docs/modules/shutdown.md](docs/modules/shutdown.md) |
-| A | time | timestamptz і UTC-сесія | [docs/modules/time.md](docs/modules/time.md) |
-| A | migrations | міграції замість synchronize, revert індексу | [docs/modules/migrations.md](docs/modules/migrations.md) |
-| B | auth | JWT 15 хв, refresh з ротацією і виявленням крадіжки, ролі | [docs/modules/auth.md](docs/modules/auth.md) |
-| C | posts | вкладена валідація, фільтри, offset і cursor, soft delete, транзакція | [docs/modules/posts.md](docs/modules/posts.md) |
-| D | queries | сирий SQL з віконною функцією, N+1 з лічильником, EXPLAIN до/після індексу, кеш у Redis | [docs/modules/queries.md](docs/modules/queries.md) |
-| E | pool | чому запити 11-20 чекають, три помилки з пулом | [docs/modules/pool.md](docs/modules/pool.md) |
-| F | credits | SELECT FOR UPDATE, 20 паралельних резервацій, CHECK, крон | [docs/modules/credits.md](docs/modules/credits.md) |
-| G | ratelimit | token bucket на Lua, порівняння з throttler | [docs/modules/ratelimit.md](docs/modules/ratelimit.md) |
-| H | github | семафор, бюджети, retry по Retry-After | [docs/modules/github.md](docs/modules/github.md) |
-| I | ai | структурований вихід LLM через zod, pgvector similar | [docs/modules/ai.md](docs/modules/ai.md) |
-| J | jobs | BullMQ, окремий воркер, 202 + SSE, retry, backpressure, батчинг x47 | [docs/modules/jobs.md](docs/modules/jobs.md) |
-| K | live | socket.io, presence, дошка, Redis-адаптер на двох інстансах | [docs/modules/live.md](docs/modules/live.md) |
-| L | security | helmet, CORS, bcrypt, демо SQL-ін'єкції | [docs/modules/security.md](docs/modules/security.md) |
-| M | tests | unit / int / e2e, CI, деплой | [docs/testing.md](docs/testing.md), [docs/deploy.md](docs/deploy.md) |
-| N | metrics | спостережуваність: логи (Loki), метрики (prom-client, Prometheus, Grafana), трейси (Jaeger), на які числа дивитись | [docs/observability.md](docs/observability.md) |
+Порядок навчальний, той самий, що в лівому меню `learn/` і в посиланнях "Попередня тема / Наступна тема" внизу кожного документа в `docs/`. Один рядок = одна сторінка learn.
+
+| # | Тема | Модулі в коді | Що показує | Docs |
+|---|---|---|---|---|
+| 1 | Старт | auth | реєстрація і логін, JWT 15 хв, refresh з ротацією і виявленням крадіжки, ролі | [auth](docs/modules/auth.md) |
+| 2 | Конфіг і формат помилок | config, errors | env через zod і падіння на старті з ясним текстом; одна форма помилки, таблиця кодів 400..502 | [config](docs/modules/config.md), [errors](docs/modules/errors.md) |
+| 3 | Пагінація, сортування, фільтри | posts | вкладена валідація, фільтри, offset і cursor, транзакція publish | [posts](docs/modules/posts.md) |
+| 4 | Міграції, час, soft delete | migrations, time, posts | міграції замість synchronize, revert індексу, timestamptz і UTC-сесія, DELETE і restore поста | [migrations](docs/modules/migrations.md), [time](docs/modules/time.md), [posts](docs/modules/posts.md) |
+| 5 | SQL, N+1 і індекси | queries | сирий SQL з віконною функцією, N+1 з лічильником запитів, EXPLAIN до і після індексу | [queries](docs/modules/queries.md) |
+| 6 | Кеш | queries | кеш у Redis, X-Cache HIT/MISS, інвалідація при PATCH | [queries](docs/modules/queries.md) |
+| 7 | Логи, request-id і health | logging, health | X-Request-Id, JSON-логер, той самий requestId у воркері, GET /health по кожній залежності | [logging](docs/modules/logging.md), [health](docs/modules/health.md) |
+| 8 | Тести і CI | test/, .github/workflows | unit / int / e2e, що підміняємо на кожному рівні, кроки CI, завдання "напиши сам" | [testing](docs/testing.md) |
+| 9 | Кредити і локи | credits | SELECT FOR UPDATE, 20 паралельних резервацій, CHECK, крон | [credits](docs/modules/credits.md) |
+| 10 | Черга і воркер | jobs | BullMQ, окремий воркер, 202 + SSE, retry, backpressure, батчинг x47 | [jobs](docs/modules/jobs.md) |
+| 11 | Живе: polling, SSE, WebSocket | live | socket.io, presence, дошка, Redis-адаптер на двох інстансах | [live](docs/modules/live.md) |
+| 12 | Пул з'єднань | pool | чому запити 11-20 чекають, три помилки з пулом | [pool](docs/modules/pool.md) |
+| 13 | Rate limit | ratelimit | token bucket на Lua, порівняння з throttler | [ratelimit](docs/modules/ratelimit.md) |
+| 14 | Безпека | security | helmet, CORS, bcrypt, демо SQL-ін'єкції | [security](docs/modules/security.md) |
+| 15 | Метрики, трейси, graceful shutdown | metrics, tracing.ts, shutdown | prom-client і GET /metrics, Prometheus і Grafana, OpenTelemetry і Jaeger, SIGTERM: дочекатись job, закрити пул і Redis | [observability](docs/observability.md), [tracing](docs/tracing.md), [shutdown](docs/modules/shutdown.md) |
+| 16 | Зовнішнє API (GitHub) | github | семафор, бюджети, retry по Retry-After | [github](docs/modules/github.md) |
+| 17 | AI: LLM і вектори | ai | структурований вихід LLM через zod, pgvector similar | [ai](docs/modules/ai.md) |
+| 18 | Деплой | deploy.yml, docker-compose.yml | GitHub Actions після зеленого CI, ssh і docker compose up на VPS або EC2 | [deploy](docs/deploy.md) |
 
 Усі ендпоінти: [docs/ENDPOINTS.md](docs/ENDPOINTS.md). Готові запити: `requests.http`. Трейсинг (OpenTelemetry, Jaeger): [docs/tracing.md](docs/tracing.md). Метрики і логи (Prometheus, Loki, Grafana): [docs/observability.md](docs/observability.md).
 
@@ -87,7 +87,7 @@ scripts/smoke.sh             # прохід по всіх ендпоінтах
 
 ## Схема і PDF
 
-- `docs/architecture.excalidraw`: схема проєкту. Відкрити на excalidraw.com через Open або в розширенні Excalidraw у VS Code.
+- `docs/architecture.excalidraw`: схема проєкту. Показана на першій сторінці learn ("Схема проєкту", тільки перегляд); відкрити для редагування на excalidraw.com через Open або в розширенні Excalidraw у VS Code.
 - `docs/Backend_without_panic.pdf`: короткий документ на всі три проєкти: для кожної теми що це, чому важливо, коли про це думати, коли можна забити, при якому трафіку і як зрозуміти, що час настав.
 
 ## Структура

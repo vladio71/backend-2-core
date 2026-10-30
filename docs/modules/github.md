@@ -26,3 +26,5 @@ Primary ліміт це квота на годину, він повертаєт�
 ## Спробуй сам
 1. Читай `x-ratelimit-remaining` з відповіді і, коли воно < 10, затримуй наступний запит до `x-ratelimit-reset`.
 2. Додай `GET /github/stats`: `inFlight`, `queued`, `retries` і залишок квоти.
+
+Попередня тема: [shutdown](shutdown.md) | Наступна тема: [ai](ai.md)

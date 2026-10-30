@@ -30,3 +30,5 @@ Token bucket пропускає короткий сплеск (ємність в
 ## Спробуй сам
 1. Зроби вартість запиту залежною від розміру тіла: `cost = 1 + Math.floor(body.length / 1000)`.
 2. Реалізуй sliding window log на `ZADD`/`ZREMRANGEBYSCORE`/`ZCARD` у `MULTI` і повісь на `GET /demo/sliding`. Порівняй поведінку на межі вікна з обома існуючими.
+
+Попередня тема: [pool](pool.md) | Наступна тема: [security](security.md)

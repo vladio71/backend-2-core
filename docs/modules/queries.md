@@ -51,3 +51,5 @@ ORM ховає SQL, але не прибирає його. N+1 не видно �
 1. Зміни індекс на `(created_at, user_id)` у міграції, накоти і порівняй `EXPLAIN`. Поверни назад.
 2. Додай у `posts-per-day` ще одну віконну функцію: `rank() OVER (PARTITION BY day ORDER BY likes DESC)`, найактивніший автор дня.
 3. Прибери `invalidate()` з `update()` і напиши тест, який це ловить (HIT зі старими `likes`).
+
+Попередня тема: [time](time.md) | Наступна тема: [logging](logging.md)

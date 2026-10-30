@@ -17,3 +17,5 @@
 ## Спробуй сам
 1. Додай перевірку черги: `queue.getWaitingCount()` і статус `degraded`, якщо чекає більше `QUEUE_MAX_WAITING`.
 2. Зупини Redis (`docker compose stop redis`) і подивись відповідь `/health` та що робить nginx.
+
+Попередня тема: [logging](logging.md) | Наступна тема: [тести](../testing.md)

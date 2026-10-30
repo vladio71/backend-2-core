@@ -5,4 +5,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: { port: 5173, strictPort: true },
+  // Excalidraw (сторінка "Схема проєкту") вантажиться окремим chunk-ом через React.lazy і сам по собі більший за 500 kB.
+  build: { chunkSizeWarningLimit: 2000 },
 });

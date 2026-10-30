@@ -94,3 +94,5 @@ Span-и йдуть у Jaeger пачками кожні 5 секунд, тому 
 - **Трейс запиту є, а span-у воркера немає.** Воркер стартував без `OTEL_EXPORTER_OTLP_ENDPOINT`, або job створили не через `POST /reports` (наприклад, вручну з Bull Board: там `traceparent` немає, і воркер відкриє новий окремий трейс).
 - **Чому не всі Redis-команди видно.** Інструментація `ioredis` створює span лише всередині іншого активного span-у (`requireParentSpan`). Фонове опитування черги воркером (BullMQ `bzpopmin` кожні кілька секунд) до жодного запиту не належить і в трейси не потрапляє, це навмисно.
 - **У тестах трейсинг заважає?** Ні: `.env.test` не містить `OTEL_EXPORTER_OTLP_ENDPOINT`, SDK не стартує, `propagation.inject` лишає `traceparent` порожнім.
+
+Попередня тема: [спостережуваність](observability.md) | Наступна тема: [shutdown](modules/shutdown.md)

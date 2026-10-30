@@ -712,3 +712,105 @@ canvas.board {
     width: 160px;
   }
 }
+
+/* ---------- Попередня / Наступна внизу сторінки ---------- */
+
+.page-nav {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-top: 28px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.page-nav-link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  text-decoration: none;
+  color: var(--text);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.page-nav-link:hover {
+  background: var(--bg-hover);
+}
+
+.page-nav-next {
+  justify-self: end;
+  text-align: right;
+}
+
+.page-nav-pos {
+  white-space: nowrap;
+}
+
+/* ---------- Схема проєкту (Excalidraw) ---------- */
+
+.scheme-canvas {
+  position: relative;
+  height: calc(100vh - 180px);
+  min-height: 480px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+
+.scheme-placeholder {
+  padding: 16px;
+}
+
+/* ---------- Кроки живого сценарію (soft delete, health) ---------- */
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13.5px;
+}
+
+.step .step-num {
+  color: var(--text-muted);
+  font-family: var(--mono);
+}
+
+.dep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.dep {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.dep.up {
+  border-left: 3px solid var(--ok);
+}
+
+.dep.down {
+  border-left: 3px solid var(--err);
+}
+
+.metrics-table td.mono {
+  word-break: break-all;
+}

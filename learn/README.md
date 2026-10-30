@@ -31,22 +31,29 @@ npm run verify       # Playwright: проходить усі сторінки, �
 
 ## Сторінки
 
+Порядок навчальний і такий самий, як у README бекенду ("Карта модулів") і в посиланнях "Попередня тема / Наступна тема" у docs/. Внизу кожної сторінки є "Попередня / Наступна" (компонент `PageNav`, порядок береться з `pages/index.ts`).
+
 | # | Сторінка | Що показує |
 |---|---|---|
-| 1 | Старт | реєстрація і логін, JWT розкодований (header, payload) і відлік до exp, refresh з ротацією, повторне використання старого refresh дає 401 |
-| 2 | Помилки і формат відповіді | кнопки на 400, 401, 403, 404, 409, 422, 429; одна форма JSON з requestId; таблиця "коли який код" |
-| 3 | Пагінація, сортування, фільтри | q, tags, tagsMode, sort, dir, pageSize; offset проти cursor, точний query string, розкодований курсор |
-| 4 | SQL і індекси | звіт posts-per-day (SVG-графік), N+1 (31 запит проти 2), EXPLAIN (Seq Scan проти Index Scan з порівнянням часу) |
-| 5 | Кеш | GET /posts/:id/stats з X-Cache HIT/MISS і часом, PATCH інвалідовує кеш |
-| 6 | Пул з'єднань | /demo/pool/slow з таймлайном кожного запиту (очікування і робота), графік total/idle/waiting з /demo/pool/stats кожні 500 мс |
-| 7 | Кредити і локи | баланс, topup (admin), 20 паралельних reserve(10) з підрахунком 201/422, confirm і release резервацій |
-| 8 | Rate limit | 15 x POST /posts, статус і X-RateLimit-* кожного, Retry-After при 429, графік токенів у відрі |
-| 9 | Зовнішнє API (GitHub) | POST /github/import, таблиця лімітів GitHub, зрозумілі повідомлення при 502 |
-| 10 | AI | модерація поста ({ action, reason, attempts }), system prompt, пошук схожих постів і пояснення 422 PGVECTOR_UNAVAILABLE |
+| 1 | Схема проєкту | docs/architecture.excalidraw у Excalidraw тільки для перегляду (зум, панорамування), вписана за шириною; prebuild копіює файл у public/ |
+| 2 | Старт | реєстрація і логін, JWT розкодований (header, payload) і відлік до exp, refresh з ротацією, повторне використання старого refresh дає 401 |
+| 3 | Конфіг і формат помилок | як застосунок падає на старті з ясним текстом (zod); кнопки на 400, 401, 403, 404, 409, 422, 429; одна форма JSON з requestId; таблиця "коли який код" |
+| 4 | Пагінація, сортування, фільтри | q, tags, tagsMode, sort, dir, pageSize; offset проти cursor, точний query string, розкодований курсор |
+| 5 | Міграції, час, soft delete | три міграції і команди migration:*, timestamptz і UTC; живий цикл POST, DELETE (204), GET (404), restore (201), GET (200), повторний restore (409) |
+| 6 | SQL, N+1 і індекси | звіт posts-per-day (SVG-графік), N+1 (31 запит проти 2), EXPLAIN (Seq Scan проти Index Scan з порівнянням часу) |
+| 7 | Кеш | GET /posts/:id/stats з X-Cache HIT/MISS і часом, PATCH інвалідовує кеш |
+| 8 | Логи, request-id і health | GET /health по кожній залежності, свій X-Request-Id у запиті повертається у відповіді, як грепнути один запит у логах API і воркера |
+| 9 | Тести і CI | три рівні тестів з прикладом на кожен (unit, int, e2e), кроки ci.yml, завдання "напиши сам" з your-turn.e2e-spec.ts |
+| 10 | Кредити і локи | баланс, topup (admin), 20 паралельних reserve(10) з підрахунком 201/422, confirm і release резервацій |
 | 11 | Черга і воркер | POST /reports (202) і три спостерігачі одного job-а (polling, SSE, WebSocket) з ціною в запитах; стан черги; flood до QUEUE_FULL; 300 подій для батчингу |
-| 12 | Живе | presence, спільна дошка на canvas (board:draw пачками по 16 мс, board:history, board:clear); відкрий у 3 вкладках |
-| 13 | Безпека | SQL-ін'єкція safe проти unsafe (тільки в development), що ще робить бекенд: helmet, CORS, bcrypt |
-| 14 | Деплой і CI | кроки CI як чекліст, деплой на VPS і EC2 |
+| 12 | Живе: polling, SSE, WebSocket | presence, спільна дошка на canvas (board:draw пачками по 16 мс, board:history, board:clear); відкрий у 3 вкладках |
+| 13 | Пул з'єднань | /demo/pool/slow з таймлайном кожного запиту (очікування і робота), графік total/idle/waiting з /demo/pool/stats кожні 500 мс |
+| 14 | Rate limit | 15 x POST /posts, статус і X-RateLimit-* кожного, Retry-After при 429, графік токенів у відрі |
+| 15 | Безпека | SQL-ін'єкція safe проти unsafe (тільки в development), що ще робить бекенд: helmet, CORS, bcrypt |
+| 16 | Метрики, трейси, graceful shutdown | GET /metrics з API, розібраний у таблицю (http_requests_total, pg_pool_*, bullmq_queue_jobs...), трейс через API і воркер, кроки SIGTERM; посилання на Grafana :3001 і Jaeger :16686 |
+| 17 | Зовнішнє API (GitHub) | POST /github/import, таблиця лімітів GitHub, зрозумілі повідомлення при 502 |
+| 18 | AI: LLM і вектори | модерація поста ({ action, reason, attempts }), system prompt, пошук схожих постів і пояснення 422 PGVECTOR_UNAVAILABLE |
+| 19 | Деплой | чекліст деплою на VPS і EC2, перевірка після деплою; кроки CI на сторінці "Тести і CI" |
 
 ## Структура
 
@@ -57,8 +64,9 @@ src/
   api/auth.ts        токени в пам'яті + localStorage, decodeJwt
   api/live.ts        socket.io-клієнт до /live
   hooks/useLatency.ts  тримає останній обмін для панелі
-  components/        Layout (шапка, меню), Panel (Запит / Відповідь / Час), спільні дрібниці, BarChart на SVG
+  components/        Layout (шапка, меню, PageNav), Panel (Запит / Відповідь / Час), SchemeCanvas (Excalidraw), спільні дрібниці, BarChart на SVG
   pages/             одна сторінка на тему, список у pages/index.ts
   styles.css         CSS-змінні, світла і темна тема через prefers-color-scheme
+public/architecture.excalidraw  копія docs/architecture.excalidraw, яку робить `npm run scheme` (predev/prebuild); не комітиться
 scripts/verify.mjs   перевірка через Playwright
 ```

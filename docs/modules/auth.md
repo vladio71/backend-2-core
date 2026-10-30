@@ -39,3 +39,5 @@ Access-токен перевіряється тільки підписом, бе
 ## Спробуй сам
 1. Додай `GET /auth/sessions`: список активних refresh-токенів користувача (без хешів: id, createdAt, expiresAt) і `DELETE /auth/sessions/:id`.
 2. Зроби так, щоб `JWT_ACCESS_TTL_SECONDS=1`, і напиши e2e-тест: після `sleep(1500)` `GET /auth/me` дає 401, а після refresh знову 200.
+
+Наступна тема: [config](config.md)

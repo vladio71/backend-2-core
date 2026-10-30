@@ -42,3 +42,5 @@ T2: 40 >= 10, ok; UPDATE balance = 30
 ## Спробуй сам
 1. Прибери `lock` у `reserve()` і запусти `test/e2e/credits.e2e-spec.ts`. Скільки разів із 10 прогонів тест упаде? Поверни лок.
 2. Реалізуй оптимістичну версію: колонка `version`, `UPDATE ... SET balance = balance - $1, version = version + 1 WHERE user_id = $2 AND version = $3`, при 0 оновлених рядків повтор. Порівняй кількість 422 у тому ж тесті.
+
+Попередня тема: [тести](../testing.md) | Наступна тема: [jobs](jobs.md)

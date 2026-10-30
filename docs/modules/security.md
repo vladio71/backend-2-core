@@ -31,3 +31,5 @@ Payload `' OR 1=1 --`:
 ## Спробуй сам
 1. Виміряй `bcrypt.hash` з cost 10, 12, 14 на своїй машині (`console.time`). Обери значення для production.
 2. Знайди в `posts-per-day.controller.ts` параметр `days` і спробуй передати `days=1; DROP TABLE posts`. Чому не спрацює? (Підказка: `ParseIntPipe` і `$1`.)
+
+Попередня тема: [ratelimit](ratelimit.md) | Наступна тема: [спостережуваність](../observability.md)

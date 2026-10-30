@@ -30,3 +30,5 @@ npm run migration:generate src/migrations/NazvaZminy   # згенерувати 
 ## Спробуй сам
 1. Додай поле `slug text` у `posts`: зміни entity, виконай `migration:generate`, прочитай згенерований SQL, накоти, відкоти.
 2. Зроби міграцію, яка заповнює `slug` з `title` для існуючих рядків (UPDATE у `up()`, нічого в `down()`). Подумай, чому down тут порожній.
+
+Попередня тема: [posts](posts.md) | Наступна тема: [time](time.md)

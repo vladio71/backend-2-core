@@ -1,16 +1,6 @@
-// Деплой і CI: статична сторінка за docs/deploy.md і .github/workflows/ci.yml.
+// Деплой: статична сторінка за docs/deploy.md і .github/workflows/deploy.yml. Кроки CI на сторінці "Тести і CI".
+import { Link } from 'react-router-dom';
 import { Card, Explain, PageTitle } from '../components/common';
-
-const CI_STEPS: Array<[string, string]> = [
-  ['actions/checkout@v4, setup-node 22 з кешем npm', 'код і Node'],
-  ['сервіси: pgvector/pgvector:pg16 і redis:7 з health-check', 'справжні Postgres і Redis у job-і, не моки'],
-  ['npm ci', 'залежності точно за package-lock'],
-  ['npm run lint', 'eslint src test scripts'],
-  ['npm run build', 'tsc, помилки типів падають тут'],
-  ['npm test', 'unit, без БД (jest)'],
-  ['npm run test:int', 'міграції і SQL проти справжнього Postgres'],
-  ['npm run test:e2e', 'увесь застосунок через HTTP і WebSocket, воркер in-process; PGVECTOR=1 вмикає тест similar'],
-];
 
 const VPS_STEPS: Array<[string, string]> = [
   ['Сервер', 'Ubuntu 22.04 або 24.04, 2 GB RAM мінімум (Postgres + Redis + 2 API + worker + nginx)'],
@@ -29,7 +19,7 @@ const VPS_STEPS: Array<[string, string]> = [
 export function DeployPage() {
   return (
     <>
-      <PageTitle title="Деплой і CI" sub="GitHub Actions: lint, build, unit, int, e2e; потім ssh і docker compose up на сервері" />
+      <PageTitle title="Деплой" sub="Після зеленого CI на main: ssh на сервер, git pull і docker compose up -d --build" />
       <Explain>
         <p>
           <b>Як це працює.</b> Два workflow. <code>ci.yml</code> запускається на кожен push і PR: піднімає Postgres і Redis як сервіси job-а і проганяє усі три
@@ -42,21 +32,12 @@ export function DeployPage() {
       </Explain>
 
       <div className="card-grid">
-        <Card title="CI: кроки (.github/workflows/ci.yml)">
-          <ul className="checklist">
-            {CI_STEPS.map(([step, why]) => (
-              <li key={step}>
-                <span>
-                  <span className="mono">{step}</span>
-                  <br />
-                  <span className="muted small">{why}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-          <div className="muted small" style={{ marginTop: 8 }}>
-            Env у CI: NODE_ENV=test, DATABASE_URL на devhub_test, REDIS_URL db 1, QUEUE_MAX_WAITING=3, REPORT_STEP_MS=50 (щоб звіт тривав 250 мс, а не 5 с).
-          </div>
+        <Card title="Що робить CI перед деплоєм">
+          <p>
+            <code>ci.yml</code> на кожен push і PR: npm ci, lint, build, unit, int, e2e проти справжніх Postgres і Redis у job-і. Кроки по одному розібрані на
+            сторінці <Link to="/tests">Тести і CI</Link>. <code>deploy.yml</code> чекає саме на цей workflow: червоний CI означає, що на сервер нічого не поїде.
+          </p>
+          <div className="muted small">Env у CI: NODE_ENV=test, DATABASE_URL на devhub_test, REDIS_URL db 1, QUEUE_MAX_WAITING=3, REPORT_STEP_MS=50.</div>
         </Card>
 
         <Card title="Деплой на VPS: чекліст (docs/deploy.md)">

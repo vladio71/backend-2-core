@@ -68,3 +68,5 @@ open https://your-domain/reference
 open https://your-domain/demo/live   (3 вкладки)
 ```
 Логи: `docker compose logs -f api-1 worker`. Один `requestId` можна грепнути одразу в обох.
+
+Попередня тема: [ai](modules/ai.md)

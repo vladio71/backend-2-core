@@ -62,3 +62,5 @@
 1. Додай `DELETE /reports/:id` для `queued` звітів: `queue.remove(id)` і статус `cancelled`. Що робити, якщо job уже `active`?
 2. Постав `WORKER_CONCURRENCY=1` і створи 5 звітів поспіль. Подивись у Bull Board, як вони виконуються по одному. Потім `=5`.
 3. Зміни `EVENTS_BATCH_WAIT_MS` на 1000 і подивись у логах воркера, як змінився розмір пачок при повільному потоці подій.
+
+Попередня тема: [credits](credits.md) | Наступна тема: [live](live.md)

@@ -37,3 +37,5 @@ LLM повертає текст, а не об'єкт. "JSON mode" гаранту
 ## Спробуй сам
 1. Додай у схему поле `confidence: number 0..1` і відхиляй рішення з `confidence < 0.5` як "потребує людини" (статус `review`).
 2. Запусти `docker compose up`, в якому pgvector є, і виконай `GET /posts/similar?q=postgres pool`. Потім створи пост про React і перевір, що він у кінці списку.
+
+Попередня тема: [github](github.md) | Наступна тема: [деплой](../deploy.md)

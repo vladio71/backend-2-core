@@ -8,13 +8,17 @@
     "node": ">=22"
   },
   "scripts": {
+    "scheme": "node -e \"require('fs').mkdirSync('public',{recursive:true});require('fs').copyFileSync('../docs/architecture.excalidraw','public/architecture.excalidraw')\"",
+    "predev": "npm run scheme",
     "dev": "vite --host --port 5173",
+    "prebuild": "npm run scheme",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview --port 5173",
     "lint": "eslint src",
     "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "0.18.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-router-dom": "6.30.6",

@@ -128,7 +128,9 @@ services:
   # Навчальний фронтенд: сторінка на кожну тему з живими запитами до API. http://localhost:5173
   learn:
     build:
-      context: ./learn
+      # Контекст: корінь, бо learn/Dockerfile бере ще docs/architecture.excalidraw для сторінки "Схема проєкту".
+      context: .
+      dockerfile: learn/Dockerfile
       args: { VITE_API_URL: "http://localhost:8080" }
     ports:
       - "5173:5173"

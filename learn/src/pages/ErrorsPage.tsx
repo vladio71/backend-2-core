@@ -1,4 +1,5 @@
-// Помилки: кнопки на кожен код і таблиця "коли який код". Усі відповіді мають однакову форму з requestId.
+// Конфіг і помилки: як застосунок падає на старті з ясним текстом (config), кнопки на кожен код і таблиця "коли який код" (errors).
+// Усі відповіді з помилкою мають однакову форму з requestId.
 import { useState } from 'react';
 import { apiCall, ApiExchange } from '../api/client';
 import { useAuth } from '../api/auth';
@@ -87,10 +88,30 @@ export function ErrorsPage() {
 
   return (
     <>
-      <PageTitle title="Помилки і формат відповіді" sub="Одна форма JSON для будь-якої помилки, код для кожної ситуації" />
+      <PageTitle
+        title="Конфіг і формат помилок"
+        sub="Падіння на старті з ясним текстом замість падіння в третьому запиті; одна форма JSON для будь-якої помилки"
+      />
       <Explain>
         <p>
-          <b>Як це працює на бекенді.</b> Сервіси кидають доменні класи (<code>NotFoundError</code>, <code>ConflictError</code>, <code>UnprocessableError</code>
+          <b>Конфіг: перевірка на старті.</b> Усі змінні оточення читаються один раз і проходять zod-схему (<code>src/modules/config/config.schema.ts</code>).
+          Далі код працює з типізованим <code>AppConfig</code>, а не з <code>process.env.X</code>, який може бути <code>undefined</code>.{' '}
+          <code>z.coerce.number()</code> перетворює <code>"10"</code> у <code>10</code>, тому ніхто не робить <code>Number(...)</code> по коду, а значення за
+          замовчуванням живуть в одному місці. Якщо бракує <code>DATABASE_URL</code> або <code>JWT_SECRET</code>, процес не стартує і друкує:
+        </p>
+        <pre>{`Застосунок не може стартувати: помилки у змінних оточення.
+  DATABASE_URL: Invalid input: expected string, received undefined. Підказка: Рядок підключення до PostgreSQL, напр. postgres://devhub:devhub@localhost:5432/devhub
+  JWT_SECRET: Invalid input: expected string, received undefined. Підказка: Секрет для підпису JWT, мінімум 16 символів. Згенеруй: openssl rand -hex 32
+Див. .env.example у корені проєкту.`}</pre>
+        <p className="muted small">
+          Спробуй сам: прибери <code>JWT_SECRET</code> з <code>.env</code>, запусти <code>npm run dev</code>, прочитай повідомлення, поверни назад. Усі змінні з
+          коментарями: <code>.env.example</code>; unit-тест на помилку і перетворення типів: <code>config.spec.ts</code>.
+        </p>
+      </Explain>
+      <Explain>
+        <p>
+          <b>Помилки: одна форма для всього.</b> Сервіси кидають доменні класи (<code>NotFoundError</code>, <code>ConflictError</code>,{' '}
+          <code>UnprocessableError</code>
           ...), а глобальний фільтр <code>AllExceptionsFilter</code> перекладає їх у HTTP-код і одну форму тіла:
         </p>
         <pre>{`{ "statusCode": 404, "code": "NOT_FOUND", "message": "Post 3f2... не знайдено",

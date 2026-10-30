@@ -41,8 +41,8 @@ page.on('console', (msg) => {
 const email = `learn${Date.now()}@example.com`;
 
 try {
-  // 1. Старт: реєстрація нового користувача, логін seed-користувачем, refresh, повторне використання.
-  await page.goto(`${LEARN_URL}/`);
+  // 1. Старт (шлях /start; / це схема проєкту): реєстрація нового користувача, логін seed-користувачем, refresh, повторне використання.
+  await page.goto(`${LEARN_URL}/start`);
   await waitApi(page);
   await page.fill('[data-testid="email"]', email);
   await page.fill('[data-testid="displayName"]', 'Learn');
@@ -127,7 +127,7 @@ try {
   const nodeIdx = await page.textContent('[data-testid="node-idx"]');
   if (nodeSeq?.includes('Seq Scan') && nodeIdx?.includes('Index')) ok('sql.explain', `${nodeSeq} проти ${nodeIdx}`);
   else fail('sql.explain', `${nodeSeq} / ${nodeIdx}`);
-  await shot(page, '04-sql');
+  await shot(page, '05-sql');
 
   // 5. Кеш
   await page.goto(`${LEARN_URL}/cache`);
@@ -144,7 +144,7 @@ try {
   const caches = await page.$$eval('[data-testid="x-cache"]', (els) => els.map((e) => e.textContent));
   if (caches.join(',') === 'MISS,HIT,MISS') ok('cache', `X-Cache: ${caches.join(' -> ')} (PATCH між другим і третім)`);
   else fail('cache', caches.join(','));
-  await shot(page, '05-cache');
+  await shot(page, '06-cache');
 
   // 6. Пул
   await page.goto(`${LEARN_URL}/pool`);
@@ -154,10 +154,10 @@ try {
   const waited = await page.textContent('[data-testid="waited-count"]');
   if (Number(waited) >= 10) ok('pool', `${waited} з 20 чекали на з'єднання (DB_POOL_MAX=10)`);
   else fail('pool', `waited=${waited}`);
-  await shot(page, '06-pool');
+  await shot(page, '12-pool');
 
   // 7. Кредити: логін admin (topup дозволений тільки admin), поповнення на 50, 20 паралельних reserve(10).
-  await page.goto(`${LEARN_URL}/`);
+  await page.goto(`${LEARN_URL}/start`);
   await waitApi(page);
   await page.fill('[data-testid="email"]', 'admin@devhub.local');
   await page.click('[data-testid="login"]');
@@ -181,9 +181,9 @@ try {
   if (c201 === expected201 && c201 + c422 === 20 && finalBalance === afterTopup - c201 * 10) {
     ok('credits.parallel', `баланс ${afterTopup}: 201: ${c201}, 422: ${c422}, баланс після ${finalBalance} (жодне списання не загублене)`);
   } else fail('credits.parallel', `очікував 201=${expected201}, отримав ${c201}/${c422}, баланс ${finalBalance}`);
-  await shot(page, '07-credits');
+  await shot(page, '09-credits');
   // Назад до olena для решти сторінок.
-  await page.goto(`${LEARN_URL}/`);
+  await page.goto(`${LEARN_URL}/start`);
   await waitApi(page);
   await page.fill('[data-testid="email"]', 'olena@devhub.local');
   await page.click('[data-testid="login"]');
@@ -198,7 +198,7 @@ try {
   const n429 = statuses.filter((s) => s === '429').length;
   if (n429 >= 4) ok('ratelimit', `статуси: ${statuses.join(',')}`);
   else fail('ratelimit', statuses.join(','));
-  await shot(page, '08-ratelimit');
+  await shot(page, '13-ratelimit');
 
   // 9. GitHub (без токена і, можливо, без мережі: перевіряємо тільки, що сторінка обробляє відповідь)
   await page.goto(`${LEARN_URL}/github`);
@@ -207,7 +207,7 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-testid="panel"] .badge') !== null, null, { timeout: 60000 });
   const ghStatus = await page.textContent('[data-testid="panel"] .badge');
   ok('github', `POST /github/import -> ${ghStatus}`);
-  await shot(page, '09-github');
+  await shot(page, '16-github');
 
   // 10. AI
   await page.goto(`${LEARN_URL}/ai`);
@@ -223,7 +223,7 @@ try {
   const simPanel = await page.$$eval('[data-testid="panel"] .badge', (els) => els.map((e) => e.textContent));
   const simProblem = await page.$('[data-testid="similar-problem"]');
   ok('ai.similar', `GET /posts/similar -> ${simPanel[1] ?? simStatus}${simProblem ? ' (показано пояснення PGVECTOR_UNAVAILABLE)' : ''}`);
-  await shot(page, '10-ai');
+  await shot(page, '17-ai');
 
   // 11. Черга: старт і три колонки до completed
   await page.goto(`${LEARN_URL}/queue`);
@@ -240,13 +240,13 @@ try {
   await page.click('[data-testid="send-events"]');
   await page.waitForSelector('[data-testid="events-result"]', { timeout: 60000 });
   ok('queue.events', (await page.textContent('[data-testid="events-result"]')) ?? '');
-  await shot(page, '11-queue');
+  await shot(page, '10-queue');
 
   // 12. Живе: два контексти, малюємо в одному, інший отримує board:draw
   const context2 = await browser.newContext({ viewport: { width: 1400, height: 900 }, colorScheme: 'dark' });
   const page2 = await context2.newPage();
   // Другий контекст: окремий localStorage, тому логінимось там окремо.
-  await page2.goto(`${LEARN_URL}/`);
+  await page2.goto(`${LEARN_URL}/start`);
   await waitApi(page2);
   await page2.fill('[data-testid="email"]', 'taras@devhub.local');
   await page2.click('[data-testid="login"]');
@@ -270,8 +270,8 @@ try {
   const sent = await page.textContent('[data-testid="sent"]');
   const received = await page2.textContent('[data-testid="received"]');
   ok('live.board', `вкладка 1 надіслала ${sent} пачок board:draw, вкладка 2 отримала ${received}`);
-  await shot(page, '12-live');
-  await shot(page2, '12-live-second-tab-dark');
+  await shot(page, '11-live');
+  await shot(page2, '11-live-second-tab-dark');
   await context2.close();
 
   // 13. Безпека
@@ -284,13 +284,74 @@ try {
   const unsafeRows = await page.textContent('[data-testid="unsafe-rows"]');
   const safeRows = await page.textContent('[data-testid="safe-rows"]');
   ok('security', `unsafe: ${unsafeRows?.slice(0, 40)}; safe: ${safeRows}`);
-  await shot(page, '13-security');
+  await shot(page, '14-security');
 
   // 14. Деплой
   await page.goto(`${LEARN_URL}/deploy`);
   await page.waitForSelector('.checklist');
   ok('deploy', 'статична сторінка з чеклістами відкрилась');
-  await shot(page, '14-deploy');
+  await shot(page, '18-deploy');
+
+  // Нові сторінки (порядок тем 1..19, файли скріншотів = номер у меню мінус один).
+  // 0. Схема проєкту: Excalidraw у режимі перегляду.
+  await page.goto(`${LEARN_URL}/`);
+  await page.waitForSelector('[data-testid="scheme-canvas"] canvas', { timeout: 30000 });
+  await page.waitForTimeout(1500);
+  const canvases = await page.$$eval('[data-testid="scheme-canvas"] canvas', (els) => els.length);
+  const schemeNav = await page.textContent('[data-testid="page-nav"]');
+  if (canvases > 0 && schemeNav?.includes('1 / 19') && !(await page.$('[data-testid="nav-prev"]'))) ok('scheme', `${canvases} canvas, навігація 1 / 19 без "Попередня"`);
+  else fail('scheme', `canvas=${canvases}, nav=${schemeNav}`);
+  await shot(page, '00-scheme');
+
+  // 5. Міграції, час, soft delete: POST, DELETE (204), GET (404), restore (201), GET (200), restore ще раз (409).
+  await page.goto(`${LEARN_URL}/migrations`);
+  await waitApi(page);
+  await page.click('[data-testid="soft-delete-cycle"]');
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="soft-delete-steps"] .step').length === 5, null, { timeout: 20000 });
+  await page.click('[data-testid="restore-again"]');
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="soft-delete-steps"] .step').length === 6, null, { timeout: 10000 });
+  const softStatuses = await page.$$eval('[data-testid="soft-delete-steps"] .badge', (els) => els.map((e) => e.textContent));
+  if (softStatuses.join(',') === '201,204,404,201,200,409') ok('migrations.softDelete', `статуси ${softStatuses.join(',')}`);
+  else fail('migrations.softDelete', softStatuses.join(','));
+  await shot(page, '04-migrations');
+
+  // 8. Логи, request-id і health: /health по залежностях, свій X-Request-Id повертається назад.
+  await page.goto(`${LEARN_URL}/logging`);
+  await waitApi(page);
+  await page.click('[data-testid="health"]');
+  await page.waitForSelector('[data-testid="health-deps"]');
+  const deps = await page.$$eval('[data-testid="health-deps"] .dep h3', (els) => els.map((e) => e.textContent));
+  await page.fill('[data-testid="custom-request-id"]', 'learn-demo-42');
+  await page.click('[data-testid="req-posts"]');
+  await page.waitForSelector('[data-testid="request-ids"]');
+  await page.click('[data-testid="req-404"]');
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="request-ids"] tbody tr').length === 2);
+  const ids = await page.$$eval('[data-testid="request-ids"] tbody tr td:nth-child(3)', (els) => els.map((e) => e.textContent));
+  if (deps.includes('postgres') && deps.includes('redis') && ids.every((id) => id === 'learn-demo-42')) ok('logging', `health: ${deps.join(', ')}; X-Request-Id повернувся: ${ids.join(', ')}`);
+  else fail('logging', `deps=${deps.join(',')} ids=${ids.join(',')}`);
+  await shot(page, '07-logging');
+
+  // 9. Тести і CI: статика.
+  await page.goto(`${LEARN_URL}/tests`);
+  await page.waitForSelector('h1');
+  const testsText = await page.textContent('main');
+  if (testsText?.includes('npm run test:e2e') && testsText.includes('test.todo') && testsText.includes('actions/checkout@v4')) ok('tests', 'три рівні, CI-кроки і test.todo на місці');
+  else fail('tests', 'бракує тексту');
+  await shot(page, '08-tests');
+
+  // 16. Метрики, трейси, graceful shutdown: GET /metrics розібраний у таблицю.
+  await page.goto(`${LEARN_URL}/observability`);
+  await waitApi(page);
+  await page.click('[data-testid="metrics-load"]');
+  await page.waitForSelector('[data-testid="metrics-table"]', { timeout: 15000 });
+  const metricNames = await page.$$eval('[data-testid="metrics-table"] tbody tr td:first-child', (els) => els.map((e) => e.textContent?.split('{')[0]));
+  if (metricNames.includes('http_requests_total') && metricNames.includes('pg_pool_total')) ok('observability.metrics', `${metricNames.length} рядків: ${[...new Set(metricNames)].join(', ')}`);
+  else fail('observability.metrics', metricNames.join(','));
+  const prevT = await page.textContent('[data-testid="nav-prev"]');
+  const nextT = await page.textContent('[data-testid="nav-next"]');
+  if (prevT?.includes('Безпека') && nextT?.includes('GitHub')) ok('nav', `Попередня/Наступна: ${prevT.trim()} | ${nextT.trim()}`);
+  else fail('nav', `${prevT} / ${nextT}`);
+  await shot(page, '15-observability');
 } catch (err) {
   fail('exception', err instanceof Error ? err.stack ?? err.message : String(err));
   await shot(page, 'error');

@@ -22,3 +22,5 @@ Middleware бере `X-Request-Id` із запиту (або генерує uuid
 ## Спробуй сам
 1. Додай у `RequestIdMiddleware` ще й `userId` у контекст (після `JwtAuthGuard` він є у `request.user`). Підказка: guard виконується після middleware, тому доведеться писати в контекст з guard-а.
 2. Зроби `EventsProcessor` так, щоб у лозі "Записано пачку подій" був список `requestId` усіх job-ів пачки.
+
+Попередня тема: [queries](queries.md) | Наступна тема: [health](health.md)
