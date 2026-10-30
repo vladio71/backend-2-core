@@ -9,6 +9,7 @@
 Потрібні тільки Node 22 і запущений Docker Desktop. Далі:
 
 ```
+npm run setup   # залежності для бекенду і для learn/ одразу (звичайний npm install теж це робить)
 npm run up
 ```
 

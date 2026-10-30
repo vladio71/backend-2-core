@@ -9,6 +9,8 @@
   "scripts": {
     "up": "node scripts/up.mjs",
     "down": "node scripts/down.mjs",
+    "setup": "npm install && npm install --prefix learn",
+    "postinstall": "node scripts/postinstall.mjs",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test scripts",

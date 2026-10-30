@@ -7,10 +7,11 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
+# postinstall у package.json ставить залежності для learn/; тут learn/ немає, тож скрипт одразу виходить.
+COPY scripts scripts
 RUN npm ci
 COPY tsconfig.json tsconfig.build.json ./
 COPY src src
-COPY scripts scripts
 RUN npm run build
 
 # ---- pruned: прибираємо dev-залежності (tsx, jest, eslint) ----
