@@ -12,9 +12,12 @@ import { REDIS, RedisModule } from '../redis/redis.module';
 import { TokenBucketService } from './token-bucket.service';
 import { TokenBucketGuard } from './token-bucket.guard';
 import { ThrottlerDemoController } from './throttler-demo.controller';
+import { RatelimitDemoController } from './ratelimit-demo.controller';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
+    AuthModule,
     ThrottlerModule.forRootAsync({
       imports: [RedisModule],
       inject: [REDIS],
@@ -24,7 +27,7 @@ import { ThrottlerDemoController } from './throttler-demo.controller';
       }),
     }),
   ],
-  controllers: [ThrottlerDemoController],
+  controllers: [ThrottlerDemoController, RatelimitDemoController],
   providers: [TokenBucketService, TokenBucketGuard],
   exports: [TokenBucketService, TokenBucketGuard],
 })

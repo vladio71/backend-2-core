@@ -9,7 +9,7 @@ import { Activity } from './activity.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { ListPostsDto, PostSortField } from './dto/list-posts.dto';
-import { ConflictError, ForbiddenError, NotFoundError } from '../errors/domain-errors';
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../errors/domain-errors';
 import { AccessTokenPayload } from '../auth/jwt.service';
 import { PostStatsCache } from './post-stats-cache.service';
 import { POST_INDEXER, PostIndexer } from './post-indexer';
@@ -37,18 +37,46 @@ const SORT_COLUMNS: Record<PostSortField, string> = {
   likes: 'p.likes',
 };
 
+const CURSOR_SQL_TYPES: Record<PostSortField, string> = {
+  createdAt: 'timestamptz',
+  title: 'text',
+  likes: 'integer',
+};
+
 export function encodeCursor(payload: CursorPayload): string {
   return Buffer.from(JSON.stringify(payload)).toString('base64url');
 }
 
-export function decodeCursor(cursor: string): CursorPayload {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// ISO-8601 в UTC з 3-6 цифрами дробової частини: 6 це повна точність timestamptz, 3 це старі курсори з Date.toISOString().
+const TIMESTAMP_RE = /^[1-9]\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,6}Z$/;
+
+function badCursor(reason: string): BadRequestError {
+  return new BadRequestError('BAD_CURSOR', `Курсор недійсний: ${reason}`);
+}
+
+// Курсор приходить від клієнта, тому довіряти йому не можна: тип `v` має відповідати полю сортування,
+// інакше Postgres кине помилку приведення типу, і клієнт отримає 500 замість 400.
+export function decodeCursor(cursor: string, sort: PostSortField): CursorPayload {
+  let parsed: Partial<CursorPayload> | null;
   try {
-    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as CursorPayload;
-    if (typeof parsed.id !== 'string') throw new Error('bad');
-    return parsed;
+    parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Partial<CursorPayload> | null;
   } catch {
-    throw new ConflictError('BAD_CURSOR', 'Курсор пошкоджений');
+    throw badCursor('не розпізнано');
   }
+  if (!parsed || typeof parsed !== 'object' || typeof parsed.id !== 'string' || !UUID_RE.test(parsed.id)) {
+    throw badCursor('поле id');
+  }
+  const v = parsed.v;
+  if (sort === 'likes') {
+    if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < -2147483648 || v > 2147483647) throw badCursor('v для sort=likes має бути цілим числом');
+  } else if (sort === 'createdAt') {
+    if (typeof v !== 'string' || !TIMESTAMP_RE.test(v) || Number.isNaN(Date.parse(v))) throw badCursor('v для sort=createdAt має бути датою ISO-8601 UTC');
+  } else if (typeof v !== 'string' || v.includes('\u0000')) {
+    // Postgres не приймає NUL у text.
+    throw badCursor('v для sort=title має бути рядком');
+  }
+  return { v: v as string | number, id: parsed.id };
 }
 
 @Injectable()
@@ -117,11 +145,16 @@ export class PostsService {
   async publish(actor: AccessTokenPayload, id: string, failActivity = false): Promise<Post> {
     const post = await this.getById(id);
     this.assertOwnerOrAdmin(actor, post);
+    // Швидка відмова без транзакції. Це лише оптимізація: вирішує перевірка всередині транзакції (нижче).
     if (post.status === 'published') throw new ConflictError('ALREADY_PUBLISHED', 'Пост уже опублікований');
 
     await this.dataSource.transaction(async (manager) => {
       // 1-й запис: сам пост. Використовуємо manager, а не this.posts: тільки так запит потрапляє в транзакцію.
-      await manager.update(Post, { id }, { status: 'published' as PostStatus, publishedAt: new Date() });
+      // Перевірка статусу і зміна це ОДИН атомарний UPDATE ... WHERE status = 'draft'. Схема "прочитав статус, потім записав"
+      // має гонку: два паралельні publish обоє бачать draft і обоє пишуть рядок в activity. Тут другий UPDATE чекає
+      // лок рядка першого, потім перевіряє умову заново, не знаходить draft і дає affected = 0 -> 409.
+      const updated = await manager.update(Post, { id, status: 'draft' as PostStatus }, { status: 'published' as PostStatus, publishedAt: new Date() });
+      if (updated.affected !== 1) throw new ConflictError('ALREADY_PUBLISHED', 'Пост уже опублікований');
       // 2-й запис: журнал. Якщо він упаде, Postgres відкотить і перший.
       if (failActivity) {
         throw new Error('Імітація падіння другого запису');
@@ -165,26 +198,32 @@ export class PostsService {
   }
 
   // Cursor: "дай наступні після (значення сортування, id)". Стабільний при вставках, O(pageSize) на будь-якій сторінці.
+  // Час у курсорі ходить текстом із повною точністю Postgres (мікросекунди). Якщо взяти post.createdAt (JS Date),
+  // мікросекунди відрізаються до мілісекунд: при DESC рядки з тією ж мілісекундою, але "меншими" мікросекундами
+  // пропускаються, при ASC повторюються. Тому беремо created_at::text (через to_char) прямо з БД.
   private async listByCursor(qb: SelectQueryBuilder<Post>, q: ListPostsDto): Promise<CursorPage> {
     const dir = q.dir.toUpperCase() as 'ASC' | 'DESC';
     const column = SORT_COLUMNS[q.sort];
     if (q.cursor) {
-      const c = decodeCursor(q.cursor);
+      const c = decodeCursor(q.cursor, q.sort);
       // Порівняння кортежів: (created_at, id) < (:v, :id). id робить порядок повним навіть при однакових значеннях.
-      qb.andWhere(`(${column}, p.id) ${dir === 'DESC' ? '<' : '>'} (:cv, :cid)`, { cv: c.v, cid: c.id });
+      // CAST потрібен, бо v приходить параметром-текстом, а порівнюється з timestamptz/int/text колонкою.
+      qb.andWhere(`(${column}, p.id) ${dir === 'DESC' ? '<' : '>'} (CAST(:cv AS ${CURSOR_SQL_TYPES[q.sort]}), CAST(:cid AS uuid))`, { cv: c.v, cid: c.id });
     }
+    qb.addSelect(`to_char(p.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`, 'cursor_created_at');
     qb.orderBy(column, dir).addOrderBy('p.id', dir);
     qb.take(q.pageSize + 1); // +1, щоб знати, чи є наступна сторінка
-    const rows = await qb.getMany();
-    const hasMore = rows.length > q.pageSize;
-    const items = hasMore ? rows.slice(0, q.pageSize) : rows;
+    const { entities, raw } = await qb.getRawAndEntities<{ cursor_created_at: string }>();
+    const hasMore = entities.length > q.pageSize;
+    const items = hasMore ? entities.slice(0, q.pageSize) : entities;
     const last = items[items.length - 1];
-    const nextCursor = hasMore && last ? encodeCursor({ v: this.sortValue(last, q.sort), id: last.id }) : null;
+    const lastRaw = raw[items.length - 1];
+    const nextCursor = hasMore && last && lastRaw ? encodeCursor({ v: this.sortValue(last, q.sort, lastRaw.cursor_created_at), id: last.id }) : null;
     return { items, nextCursor };
   }
 
-  private sortValue(post: Post, sort: PostSortField): string | number {
-    if (sort === 'createdAt') return post.createdAt.toISOString();
+  private sortValue(post: Post, sort: PostSortField, createdAtExact: string): string | number {
+    if (sort === 'createdAt') return createdAtExact;
     if (sort === 'likes') return post.likes;
     return post.title;
   }

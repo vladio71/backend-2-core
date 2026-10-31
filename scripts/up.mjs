@@ -10,12 +10,12 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
+import { basename } from 'node:path';
 
-const PROJECT = 'backend-2-core';
-// health також перевіряється у SMOKE нижче.
-const HEALTH_URL = 'http://localhost:8080/health';
-void HEALTH_URL;
-const SMOKE = [["health через nginx", "http://localhost:8080/health", {"status": 200, "includes": "ok"}], ["список постів (без токена має бути 401)", "http://localhost:8080/posts", {"status": 401}], ["контракт API", "http://localhost:8080/reference", {"status": 200}], ["learn", "http://localhost:5173/", {"status": 200, "includes": "<div id=\"root\""}]]; // [назва, url, що очікуємо]
+// Ім'я compose-проєкту: як у docker compose, тобто COMPOSE_PROJECT_NAME або назва теки (нижній регістр, без зайвих символів).
+// Не хардкодимо: теку можуть перейменувати або клонувати під іншою назвою, і тоді startsWith(PROJECT) нижче перестав би впізнавати наші контейнери.
+const PROJECT = (process.env.COMPOSE_PROJECT_NAME ?? basename(process.cwd())).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+const SMOKE = [["health через nginx", "http://localhost:8080/health", {"status": 200, "includes": "ok"}], ["список постів (GET /posts публічний)", "http://localhost:8080/posts", {"status": 200, "includes": "\"items\""}], ["контракт API", "http://localhost:8080/reference", {"status": 200}], ["learn", "http://localhost:5173/", {"status": 200, "includes": "<div id=\"root\""}]]; // [назва, url, що очікуємо]
 const OPEN = [["learn: сторінка на кожну тему, починати звідси", "http://localhost:5173"], ["контракт API", "http://localhost:8080/reference"], ["Bull Board, черги", "http://localhost:8080/queues"], ["Jaeger, трейси", "http://localhost:16686"], ["Grafana (тільки з --observability), admin/admin", "http://localhost:3001"]];   // [назва, url]
 const PROFILES = {"--observability": "observability"}; // прапорець -> профіль compose
 

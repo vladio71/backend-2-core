@@ -114,6 +114,7 @@ GET {{base}}/demo/pool/stats
 
 ### pool slow (DB_POOL_MAX=10, n=20: запити 11-20 чекають)
 GET {{base}}/demo/pool/slow?seconds=2&n=20
+Authorization: Bearer {{token}}
 
 ### credits: me
 GET {{base}}/credits/me

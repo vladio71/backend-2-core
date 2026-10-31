@@ -1,7 +1,7 @@
-// Що це: міст Redis pub/sub -> процес API. Воркер публікує ReportEvent у канал, тут ми підписуємося
-// і роздаємо підписникам у процесі (SSE-обробник, LiveGateway).
+// Що це: міст Redis pub/sub -> процес API. Воркер публікує ReportEvent у канал (ReportEventsPublisher),
+// тут ми підписуємося і роздаємо підписникам у процесі (SSE-обробник, LiveGateway). Тільки підписка, API не публікує.
 // Чому pub/sub, а не прямий виклик: воркер це ІНШИЙ процес. Спільного пам'яті немає, є тільки Redis.
-// Хто викликає: JobsModule (API). publish() викликає ReportsProcessor (воркер).
+// Хто викликає: JobsModule (API).
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { EventEmitter } from 'node:events';
 import Redis from 'ioredis';
@@ -37,11 +37,6 @@ export class ReportEventsService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     await this.subscriber?.quit().catch(() => undefined);
-  }
-
-  // Воркер викликає це після кожної зміни статусу.
-  async publish(event: ReportEvent): Promise<void> {
-    await this.redis.publish(REPORT_EVENTS_CHANNEL, JSON.stringify(event));
   }
 
   subscribe(listener: ReportEventListener): () => void {

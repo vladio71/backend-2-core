@@ -66,5 +66,8 @@ export class BatchCollector<T> {
       }
       await this.flushing;
     }
+    // Цикл виходить, коли нема ні pending, ні таймера. Але пачка, яку flushNow вже забрав із pending,
+    // могла ще виконуватись (повільний INSERT): без цього await drain() повернувся б до її завершення.
+    await this.flushing;
   }
 }

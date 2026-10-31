@@ -100,6 +100,65 @@ describe('posts (e2e)', () => {
     });
   });
 
+  describe('cursor: однакова мілісекунда, різні мікросекунди', () => {
+    const base = '2030-01-01 00:00:00.123';
+    const ids: string[] = [];
+
+    beforeAll(async () => {
+      // Три поста з тією самою мілісекундою (.123), але різними мікросекундами. JS Date бачить для всіх .123.
+      // Далека дата 2030, щоб вони стояли попереду всіх інших постів у DESC і не змішувались при ASC в кінці.
+      for (const micros of ['100', '200', '300']) {
+        const rows = await t.dataSource.query(
+          `INSERT INTO posts (title, body, tags, status, likes, author_id, created_at) VALUES ($1, 'x', '{}', 'published', 0, $2, $3::timestamptz) RETURNING id`,
+          [`micro ${micros}`, author.id, `${base}${micros}+00`],
+        );
+        ids.push(rows[0].id);
+      }
+    });
+
+    async function paginate(dir: 'asc' | 'desc'): Promise<string[]> {
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      for (let guard = 0; guard < 200; guard++) {
+        const url: string = `/posts?mode=cursor&pageSize=1&sort=createdAt&dir=${dir}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+        const res: { body: { items: Array<{ id: string }>; nextCursor: string | null } } = await t.http().get(url).expect(200);
+        seen.push(...res.body.items.map((i) => i.id));
+        cursor = res.body.nextCursor;
+        if (!cursor) break;
+      }
+      return seen;
+    }
+
+    it('DESC: без пропусків і дублікатів, порядок за мікросекундами', async () => {
+      const seen = await paginate('desc');
+      expect(new Set(seen).size).toBe(seen.length);
+      expect(seen.slice(0, 3)).toEqual([ids[2], ids[1], ids[0]]);
+      const total = await t.dataSource.query(`SELECT count(*)::int AS n FROM posts WHERE deleted_at IS NULL`);
+      expect(seen).toHaveLength(total[0].n);
+    });
+
+    it('ASC: без пропусків і дублікатів, порядок за мікросекундами', async () => {
+      const seen = await paginate('asc');
+      expect(new Set(seen).size).toBe(seen.length);
+      expect(seen.slice(-3)).toEqual([ids[0], ids[1], ids[2]]);
+      const total = await t.dataSource.query(`SELECT count(*)::int AS n FROM posts WHERE deleted_at IS NULL`);
+      expect(seen).toHaveLength(total[0].n);
+    });
+
+    it('курсор із правильною формою, але сміттям у v, або v не того типу -> 400 BAD_CURSOR (не 500)', async () => {
+      const make = (payload: object) => Buffer.from(JSON.stringify(payload)).toString('base64url');
+      const id = ids[0];
+      for (const [sort, v] of [['createdAt', 'garbage'], ['createdAt', 12], ['likes', 'abc'], ['title', 5]] as const) {
+        const res = await t.http().get(`/posts?mode=cursor&sort=${sort}&cursor=${make({ v, id })}`).expect(400);
+        expect(res.body.code).toBe('BAD_CURSOR');
+      }
+      // Пошкоджений base64/JSON і не-uuid id теж 400.
+      const broken = await t.http().get('/posts?mode=cursor&cursor=!!!').expect(400);
+      expect(broken.body.code).toBe('BAD_CURSOR');
+      await t.http().get(`/posts?mode=cursor&sort=likes&cursor=${make({ v: 1, id: 'zzz' })}`).expect(400);
+    });
+  });
+
   describe('soft delete і restore', () => {
     it('після DELETE пост зникає зі списку і GET, але повертається після restore', async () => {
       const id = await createPost(author, { title: 'Видалити мене', body: 'x' });
@@ -121,6 +180,29 @@ describe('posts (e2e)', () => {
       const activity = await t.dataSource.query(`SELECT * FROM activity WHERE post_id = $1`, [id]);
       expect(activity).toHaveLength(1);
       await t.http().post(`/posts/${id}/publish`).set(bearer(author)).expect(409);
+    });
+
+    it('5 паралельних publish: один 201, решта 409, один рядок у activity', async () => {
+      const id = await createPost(author, { title: 'Гонка publish', body: 'x' });
+      // Робимо вікно між "прочитав статус" і "записав" широким (80 мс), щоб гонка відтворювалась стабільно.
+      const service = t.app.get(PostsService);
+      const original = service.getById.bind(service);
+      const spy = jest.spyOn(service, 'getById').mockImplementation(async (...args) => {
+        const post = await original(...args);
+        await sleep(80);
+        return post;
+      });
+      const statuses = await Promise.all(
+        Array.from({ length: 5 }, async () => {
+          const res = await fetch(`${t.baseUrl}/posts/${id}/publish`, { method: 'POST', headers: bearer(author) });
+          return res.status;
+        }),
+      );
+      spy.mockRestore();
+      expect(statuses.filter((s) => s === 201)).toHaveLength(1);
+      expect(statuses.filter((s) => s === 409)).toHaveLength(4);
+      const activity = await t.dataSource.query(`SELECT * FROM activity WHERE post_id = $1`, [id]);
+      expect(activity).toHaveLength(1);
     });
 
     it('падіння другого запису відкочує перший: статус лишається draft', async () => {

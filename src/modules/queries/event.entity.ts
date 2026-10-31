@@ -8,7 +8,7 @@ export class Event {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id!: string;
 
-  // Індекс (user_id, created_at) додає ОКРЕМА міграція 1700000000004, щоб її можна було відкотити і порівняти плани.
+  // Індекс (user_id, created_at) додає ОКРЕМА міграція 1700000000003, щоб її можна було відкотити і порівняти плани.
   @Column({ name: 'user_id', type: 'uuid' })
   userId!: string;
 

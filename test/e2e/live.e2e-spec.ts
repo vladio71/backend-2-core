@@ -31,6 +31,14 @@ describe('live (e2e)', () => {
     await t.close();
   });
 
+  it('CORS сокетів іде з CORS_ORIGINS: свій origin дозволений, чужий ні', async () => {
+    const handshake = (origin: string) => fetch(`${t.baseUrl}/socket.io/?EIO=4&transport=polling`, { headers: { Origin: origin } });
+    const allowed = await handshake('http://localhost:5173');
+    expect(allowed.headers.get('access-control-allow-origin')).toBe('http://localhost:5173');
+    const foreign = await handshake('http://evil.example');
+    expect(foreign.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
   it('без валідного JWT з\'єднання одразу закривається', async () => {
     const socket = io(`${t.baseUrl}/live`, { auth: { token: 'bad' }, transports: ['websocket'], reconnection: false });
     const reason = await new Promise<string>((resolve) => {

@@ -14,6 +14,13 @@ export class DomainError extends Error {
   }
 }
 
+// 400: клієнт надіслав щось, що не має сенсу (наприклад, пошкоджений курсор). Відмінність від 422: тут сама форма запиту хибна.
+export class BadRequestError extends DomainError {
+  constructor(code: string, message: string, details?: unknown) {
+    super(code, message, details);
+  }
+}
+
 // 404: об'єкта немає (або він м'яко видалений і це не адмін).
 export class NotFoundError extends DomainError {
   constructor(entity: string, id: string) {

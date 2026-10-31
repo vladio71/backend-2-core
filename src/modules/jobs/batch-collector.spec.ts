@@ -17,4 +17,17 @@ describe('BatchCollector', () => {
     }, 10, 5);
     await expect(Promise.all([collector.add(1), collector.add(2)])).rejects.toThrow('db down');
   });
+
+  it('drain() чекає пачку, яка вже виконується (pending порожній, таймера нема)', async () => {
+    let written = 0;
+    const collector = new BatchCollector<number>(async (items) => {
+      await new Promise((r) => setTimeout(r, 80));
+      written += items.length;
+    }, 1, 5);
+    const added = collector.add(1);
+    await new Promise((r) => setTimeout(r, 30)); // таймер спрацював, flush триває
+    await collector.drain();
+    expect(written).toBe(1);
+    await added;
+  });
 });

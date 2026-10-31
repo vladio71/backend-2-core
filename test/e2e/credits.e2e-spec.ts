@@ -61,4 +61,12 @@ describe('credits (e2e)', () => {
   it('CHECK (balance >= 0) у БД не дає піти в мінус навіть прямим UPDATE', async () => {
     await expect(t.dataSource.query(`UPDATE credit_balances SET balance = -1 WHERE user_id = $1`, [user.id])).rejects.toThrow(/credit_balances_balance_non_negative/);
   });
+
+  it('демо: reset повертає баланс 100 і закриває активні резервації; unsafe-шлях списує без локу', async () => {
+    const reset = await t.http().post('/credits/demo/reset').set(bearer(user)).expect(201);
+    expect(reset.body).toMatchObject({ balance: 100, reserved: 0 });
+    await t.http().post('/credits/reserve').query({ unsafe: 'true' }).set(bearer(user)).send({ amount: 10 }).expect(201);
+    const me = await t.http().get('/credits/me').set(bearer(user)).expect(200);
+    expect(me.body).toMatchObject({ balance: 90, reserved: 10 });
+  });
 });

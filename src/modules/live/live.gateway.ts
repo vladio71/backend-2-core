@@ -20,7 +20,9 @@ export interface DrawMessage {
   points: Point[];
 }
 
-@WebSocketGateway({ namespace: '/live', cors: { origin: true } })
+// CORS для сокетів не задаємо в декораторі: він виконується при завантаженні файла, до DI, і конфігу ще нема.
+// Дозволені origin береться з CORS_ORIGINS (як для HTTP у main.ts) в RedisIoAdapter.createIOServer.
+@WebSocketGateway({ namespace: '/live' })
 export class LiveGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit, OnModuleDestroy {
   @WebSocketServer()
   server!: Namespace;

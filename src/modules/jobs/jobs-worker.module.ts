@@ -6,11 +6,12 @@ import { Report } from './report.entity';
 import { EVENTS_QUEUE, REPORTS_QUEUE } from './queues';
 import { ReportsProcessor } from './reports.processor';
 import { EventsProcessor } from './events.processor';
-import { ReportEventsService } from './report-events.service';
+import { ReportEventsPublisher } from './report-events.publisher';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Report]), BullModule.registerQueue({ name: REPORTS_QUEUE }, { name: EVENTS_QUEUE })],
-  providers: [ReportsProcessor, EventsProcessor, ReportEventsService],
+  // Тільки publisher: підписка на канал звітів потрібна лише API (ReportEventsService у JobsModule).
+  providers: [ReportsProcessor, EventsProcessor, ReportEventsPublisher],
   exports: [EventsProcessor],
 })
 export class JobsWorkerModule {}

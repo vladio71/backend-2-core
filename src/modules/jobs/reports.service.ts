@@ -7,7 +7,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { context, propagation } from '@opentelemetry/api';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Report } from './report.entity';
 import { REPORTS_QUEUE, ReportJobData } from './queues';
 import { APP_CONFIG } from '../config/config.module';
@@ -31,6 +31,8 @@ export class ReportsService {
   ) {}
 
   async create(userId: string, failRate: number): Promise<ReportAccepted> {
+    // Рахуємо лише 'waiting'. Job-и в 'delayed' (чекають backoff після невдалої спроби) сюди не входять, тож під час
+    // шторму збоїв реальна черга трохи більша за ліміт. Для суворішого backpressure: getJobCounts('waiting', 'delayed').
     const waiting = await this.queue.getWaitingCount();
     if (waiting >= this.config.QUEUE_MAX_WAITING) {
       throw new TooManyRequestsError('QUEUE_FULL', `Черга переповнена: ${waiting} job-ів чекають`, 5);
@@ -54,6 +56,20 @@ export class ReportsService {
     const report = await this.reports.findOne({ where: { id, userId } });
     if (!report) throw new NotFoundError('Report', id);
     return report;
+  }
+
+  // ТІЛЬКИ ДЛЯ ДЕМО (сторінка "Черга і воркер"): прибрати з черги job-и цього користувача, які ще чекають воркера.
+  // Після flood на 120 звітів черга розсмоктувалась би хвилин 5; так сторінку можна повторювати.
+  // Активні job-и не чіпаємо, вони добіжать за 5 с. Рядки звітів у БД позначаємо failed, щоб не висіли в "queued".
+  async drainMine(userId: string): Promise<{ removed: number }> {
+    if (this.config.NODE_ENV === 'production') throw new NotFoundError('Route', 'demo');
+    const jobs = await this.queue.getJobs(['waiting', 'delayed'], 0, -1);
+    const mine = jobs.filter((job) => job.data.userId === userId);
+    for (const job of mine) await job.remove();
+    if (mine.length > 0) {
+      await this.reports.update({ id: In(mine.map((job) => job.data.reportId)), status: 'queued' }, { status: 'failed', error: 'Прибрано з черги демо-кнопкою' });
+    }
+    return { removed: mine.length };
   }
 
   async queueStats(): Promise<{ waiting: number; active: number; completed: number; failed: number; maxWaiting: number }> {

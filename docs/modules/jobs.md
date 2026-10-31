@@ -42,7 +42,7 @@
 `/queues`: стан черг, job-и, помилки, retry руками. У `development` відкритий, інакше потрібен JWT адміна (`?token=` або заголовок).
 
 ### Крон
-`@nestjs/schedule`, `CreditsCron.releaseExpired()` щохвилини (див. `credits.md`). Живе у процесі API, не у воркері: інакше при двох воркерах він би виконувався двічі (у production крон теж треба або виносити в один процес, або брати лок у Redis).
+`@nestjs/schedule`, `CreditsCron.releaseExpired()` щохвилини (див. `credits.md`). Живе у процесі API, не у воркері. У compose два API (api-1 і api-2), тож крон біжить в обох щохвилини. Це безпечно: `expireStale()` бере лок рядка резервації (`FOR UPDATE`) і перевіряє статус усередині транзакції, тому другий запуск стає no-op. Для крону без такої ідемпотентності треба або виносити його в один процес, або брати лок у Redis.
 
 ## Чому так
 Довга робота в HTTP-обробнику тримає з'єднання, пул, пам'ять; клієнт чекає 5 с і отримує таймаут від nginx. 202 + статус дозволяє клієнту відпустити запит. Окремий процес воркера: падіння job-у не кладе API, масштабуються незалежно. Рядок у БД перед enqueue: якщо Redis впаде між ними, лишиться запис `queued` без job-у, і це видно; навпаки гірше: воркер бере job, а рядка ще немає. Backpressure: обіцяти те, чого не виконаємо, гірше, ніж чесно сказати "пізніше".
@@ -53,7 +53,7 @@
 - `src/modules/jobs/reports.controller.ts`: 202, polling, SSE.
 - `src/modules/jobs/reports.processor.ts`: кроки, retry, `@OnWorkerEvent('failed')`.
 - `src/modules/jobs/batch-collector.ts`, `events.processor.ts`.
-- `src/modules/jobs/report-events.service.ts`: Redis pub/sub.
+- `src/modules/jobs/report-events.service.ts`: Redis pub/sub, підписка (API). `report-events.publisher.ts`: публікація (воркер).
 - `src/modules/jobs/jobs.module.ts` (API), `jobs-worker.module.ts` (воркер), `src/worker.ts`, `src/worker.module.ts`.
 - `scripts/bench-batch.ts`.
 - `test/e2e/jobs.e2e-spec.ts`, `src/modules/jobs/batch-collector.spec.ts`.

@@ -1,5 +1,6 @@
 // e2e: auth. Реєстрація, логін, me, ротація refresh, виявлення повторного використання, logout, ролі.
-import { TestApp, createTestApp, registerUser, bearer } from '../helpers/app';
+import { TestApp, createTestApp, registerUser, bearer, sleep } from '../helpers/app';
+import { UsersService } from '../../src/modules/users/users.service';
 
 describe('auth (e2e)', () => {
   let t: TestApp;
@@ -33,6 +34,33 @@ describe('auth (e2e)', () => {
     await t.http().post('/auth/refresh').send({ refreshToken: user.refreshToken }).expect(401);
     const reuse = await t.http().post('/auth/refresh').send({ refreshToken: first.body.refreshToken }).expect(401);
     expect(reuse.body.message).toMatch(/відкликано/);
+  });
+
+  it('5 паралельних refresh одним токеном: рівно один 200, решта 401, сім\'я відкликана', async () => {
+    const user = await registerUser(t, 'parallel@test.local');
+    // Між "прочитав токен" і "спалив токен" є запит за користувачем. Робимо це вікно 80 мс, щоб гонка відтворювалась стабільно
+    // (без затримки локальна БД відповідає так швидко, що запити встигають виконатись майже послідовно).
+    const users = t.app.get(UsersService);
+    const original = users.findById.bind(users);
+    const spy = jest.spyOn(users, 'findById').mockImplementation(async (id: string) => {
+      await sleep(80);
+      return original(id);
+    });
+    // fetch на реальний порт: усі 5 запитів стартують разом.
+    const results = await Promise.all(
+      Array.from({ length: 5 }, async () => {
+        const res = await fetch(`${t.baseUrl}/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: user.refreshToken }) });
+        return res.status;
+      }),
+    );
+    spy.mockRestore();
+    expect(results.filter((s) => s === 200)).toHaveLength(1);
+    expect(results.filter((s) => s === 401)).toHaveLength(4);
+    // Програвші відкликали сім'ю: старий токен точно revoked. Токен переможця може вже бути записаний або ще ні
+    // на момент відкликання, тому його статус не перевіряємо (поведінка описана в docs/modules/auth.md).
+    const rows = await t.dataSource.query(`SELECT revoked_at FROM refresh_tokens rt JOIN users u ON u.id = rt.user_id WHERE u.email = 'parallel@test.local' AND rt.used_at IS NOT NULL`);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].revoked_at).not.toBeNull();
   });
 
   it('logout відкликає refresh-токен', async () => {

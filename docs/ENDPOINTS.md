@@ -42,7 +42,7 @@ Auth: `Bearer` означає заголовок `Authorization: Bearer <accessT
 | GET | /demo/n-plus-one | ні | `fixed=true\|false` | `{ fixed, postsReturned, queryCount, queries, items }` |
 | GET | /demo/explain | ні | `indexed=true\|false` | `{ nodeType, indexName, rowsMatched, planningTimeMs, executionTimeMs, plan }` |
 | GET | /demo/pool/stats | ні | | `{ max, total, idle, waiting }` |
-| GET | /demo/pool/slow | ні | `seconds=1, n=20` | `{ poolMax, wallClockMs, timings: [{ index, waitedForConnectionMs, totalMs }], poolAfter }` |
+| GET | /demo/pool/slow | так (Bearer) | `seconds=1 (1..5), n=20 (1..30)` | `{ poolMax, wallClockMs, timings: [{ index, waitedForConnectionMs, totalMs }], poolAfter }` |
 | GET | /demo/throttled | ні | | 200; 429 після 10 за 10 с (@nestjs/throttler) |
 | GET | /demo/sql-injection | ні, тільки NODE_ENV=development | `safe=true\|false, q` | `{ safe, sql, rows }` |
 

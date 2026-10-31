@@ -6,7 +6,6 @@ import './tracing';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
 import helmet from 'helmet';
 import { join } from 'node:path';
@@ -14,13 +13,18 @@ import { AppModule } from './app.module';
 import { AppLogger } from './modules/logging/app-logger';
 import { APP_CONFIG } from './modules/config/config.module';
 import { AppConfig } from './modules/config/config.schema';
-import { setupApp } from './app-setup';
+import { setupApp, setupOpenApi } from './app-setup';
 
 async function bootstrap(): Promise<void> {
   const logger = new AppLogger('Bootstrap');
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger, bufferLogs: false });
   const config = app.get<AppConfig>(APP_CONFIG);
 
+  // За nginx (і api-1/api-2 за ним) TCP-з'єднання приходить з IP проксі, а справжній клієнт лежить у X-Forwarded-For.
+  // trust proxy = 1 каже Express довіряти рівно одному проксі-хопу (nginx): тоді req.ip це IP клієнта,
+  // і rate limit для анонімів (ключ ip:<req.ip>) не склеює всіх в один кошик. Більше 1 не ставимо: інакше клієнт
+  // зміг би підробити X-Forwarded-For і обійти ліміт.
+  app.set('trust proxy', 1);
   app.use(helmet({ contentSecurityPolicy: false })); // CSP вимкнено, бо Scalar і демо-сторінка вантажать скрипти з CDN
   app.enableCors({
     origin: config.CORS_ORIGINS.split(',').map((o) => o.trim()),
@@ -31,12 +35,7 @@ async function bootstrap(): Promise<void> {
   setupApp(app, config.REDIS_URL);
   app.useStaticAssets(join(__dirname, '..', 'public'), { prefix: '/demo' });
 
-  const openapi = SwaggerModule.createDocument(
-    app,
-    new DocumentBuilder().setTitle('devhub').setDescription('Навчальний backend: усі ендпоінти').setVersion('1.0').addBearerAuth().build(),
-  );
-  const http = app.getHttpAdapter().getInstance();
-  http.get('/openapi.json', (_req: unknown, res: { json: (body: unknown) => void }) => res.json(openapi));
+  setupOpenApi(app);
   app.use('/reference', apiReference({ url: '/openapi.json', theme: 'kepler' }));
 
   await app.listen(config.PORT);

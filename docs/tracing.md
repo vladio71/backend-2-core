@@ -92,7 +92,7 @@ Span-и йдуть у Jaeger пачками кожні 5 секунд, тому 
 1. Виконати:
 
    ```
-   curl -s "localhost:8080/demo/pool/slow?seconds=2&n=20"
+   curl -s -H "Authorization: Bearer $TOKEN" "localhost:8080/demo/pool/slow?seconds=2&n=20"
    ```
 
    У відповіді `timings[]`: у перших 10 `waitedForConnectionMs` близько 0, у решти близько 2000.

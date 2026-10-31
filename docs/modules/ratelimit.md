@@ -1,7 +1,7 @@
 # ratelimit: token bucket у Redis
 
 ## Що це
-Власний token bucket: 10 запитів за 10 с на користувача (або IP для анонімних), застосований до `POST /posts`. Заголовки `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; при відмові 429 з `Retry-After`. Для порівняння `GET /demo/throttled` обмежений готовим `@nestjs/throttler` (fixed window 10/10 с).
+Власний token bucket: 10 запитів за 10 с на користувача (або IP для анонімних; за nginx це працює лише завдяки `app.set('trust proxy', 1)` у `main.ts`, інакше `req.ip` був би адресою проксі і всі анонімні ділили б один кошик), застосований до `POST /posts`. Заголовки `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; при відмові 429 з `Retry-After`. Для порівняння `GET /demo/throttled` обмежений готовим `@nestjs/throttler` (fixed window 10/10 с).
 
 ```
 Token bucket (ємність 10, +1 токен/с):            Fixed window (10 за вікно 10 с):

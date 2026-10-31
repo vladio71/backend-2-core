@@ -13,6 +13,8 @@ import { APP_CONFIG } from '../config/config.module';
 import { AppConfig } from '../config/config.schema';
 
 export const RESERVATION_TTL_MS = 10 * 60 * 1000;
+// Баланс, до якого демо-скидання повертає користувача (сторінка "Кредити").
+export const DEMO_BALANCE = 100;
 
 export interface BalanceView {
   userId: string;
@@ -82,6 +84,50 @@ export class CreditsService {
     });
   }
 
+  // ТІЛЬКИ ДЛЯ ДЕМО (сторінка "Кредити"): те саме reserve, але наївно, без локу.
+  // SELECT balance, перевірка в JS, UPDATE balance = <число, пораховане в JS>. Транзакція є, а ізоляції від сусідів немає:
+  // в READ COMMITTED кожна транзакція бачить "50", кожна пише "40", і чотири списання з п'яти губляться.
+  // CHECK (balance >= 0) тут НЕ допомагає: втрачене списання лишає баланс додатним, тож БД нічого не помічає.
+  // У production цей шлях вимкнений.
+  async reserveUnsafe(userId: string, amount: number): Promise<CreditReservation> {
+    this.assertDemoAllowed();
+    return this.dataSource.transaction(async (manager) => {
+      await manager.query(`INSERT INTO credit_balances (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING`, [userId]);
+      const rows: Array<{ balance: number }> = await manager.query(`SELECT balance FROM credit_balances WHERE user_id = $1`, [userId]);
+      const current = rows[0].balance;
+      if (current < amount) {
+        throw new UnprocessableError('INSUFFICIENT_CREDITS', `Недостатньо кредитів: є ${current}, потрібно ${amount}`, { balance: current, amount });
+      }
+      await manager.query(`UPDATE credit_balances SET balance = $2, updated_at = now() WHERE user_id = $1`, [userId, current - amount]);
+      const reservation = manager.create(CreditReservation, {
+        userId,
+        amount,
+        status: 'reserved',
+        expiresAt: new Date(Date.now() + RESERVATION_TTL_MS),
+      });
+      return manager.save(reservation);
+    });
+  }
+
+  // ТІЛЬКИ ДЛЯ ДЕМО: повернути користувача до відомого стану. Баланс = 100, активні резервації закриваємо (released).
+  // Кредити назад не додаємо: баланс і так виставляється числом.
+  async demoReset(userId: string): Promise<BalanceView> {
+    this.assertDemoAllowed();
+    await this.dataSource.transaction(async (manager) => {
+      await manager.query(
+        `INSERT INTO credit_balances (user_id, balance) VALUES ($1, $2)
+         ON CONFLICT (user_id) DO UPDATE SET balance = EXCLUDED.balance, updated_at = now()`,
+        [userId, DEMO_BALANCE],
+      );
+      await manager.query(`UPDATE credit_reservations SET status = 'released' WHERE user_id = $1 AND status = 'reserved'`, [userId]);
+    });
+    return this.getBalance(userId);
+  }
+
+  private assertDemoAllowed(): void {
+    if (this.config.NODE_ENV === 'production') throw new NotFoundError('Route', 'demo');
+  }
+
   // Підтвердити: кредити списані остаточно. Повернути нічого не треба, тільки змінити статус.
   async confirm(userId: string, reservationId: string): Promise<CreditReservation> {
     return this.dataSource.transaction(async (manager) => {
@@ -103,18 +149,27 @@ export class CreditsService {
   }
 
   // Викликається кроном щохвилини: усі "reserved" з простроченим expires_at повертаємо на баланс.
+  // Вибираємо в SQL лише прострочені (expires_at <= now()), а не всі активні: інакше щохвилини читали б усю таблицю.
+  // Одна зламана резервація не зупиняє решту: помилку логуємо і йдемо далі, її підхопить наступний запуск.
   async expireStale(): Promise<number> {
-    const stale = await this.reservations.find({ where: { status: 'reserved' as ReservationStatus } });
-    const now = Date.now();
+    const stale = await this.reservations
+      .createQueryBuilder('r')
+      .where('r.status = :status AND r.expires_at <= now()', { status: 'reserved' as ReservationStatus })
+      .getMany();
     let count = 0;
     for (const r of stale) {
-      if (r.expiresAt.getTime() > now) continue;
-      await this.dataSource.transaction(async (manager) => {
-        const locked = await this.lockReservation(manager, r.userId, r.id);
-        if (locked.status !== 'reserved') return;
-        await this.returnToBalance(manager, locked, 'expired');
-        count += 1;
-      });
+      try {
+        await this.dataSource.transaction(async (manager) => {
+          // Лок на рядку резервації + повторна перевірка статусу: якщо її вже підтвердили, відпустили або
+          // протермінував інший екземпляр API (крон біжить в api-1 і api-2), ми побачимо не "reserved" і нічого не робимо.
+          const locked = await this.lockReservation(manager, r.userId, r.id);
+          if (locked.status !== 'reserved') return;
+          await this.returnToBalance(manager, locked, 'expired');
+          count += 1;
+        });
+      } catch (err) {
+        this.logger.error(`Не вдалося протермінувати резервацію ${r.id}`, err);
+      }
     }
     if (count > 0) this.logger.info(`Протерміновано резервацій: ${count}`);
     return count;

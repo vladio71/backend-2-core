@@ -34,6 +34,10 @@ export class EventsController {
     await this.queue.add(
       'track',
       { userId: user.sub, type: dto.type, payload: dto.payload ?? {}, requestId: getRequestId() ?? '' },
+      // Без attempts (тобто 1 спроба), на відміну від звітів (attempts: 3, див. reports.service.ts). Чому: подія це
+      // телеметрія, втратити одну дешевше, ніж ускладнити. До того ж повтор небезпечний: воркер пише події пачкою
+      // (BatchCollector), а job-и без ключа ідемпотентності, тож повтор пачки, що могла частково пройти, дав би дублі.
+      // Звіт навпаки ідемпотентний (jobId = id звіту, статус перезаписується) і користувач чекає на результат.
       { removeOnComplete: true, removeOnFail: 1000 },
     );
     return { queued: true };

@@ -60,7 +60,7 @@ Label `route` це шаблон маршруту (`/posts/:id`), а не сир�
 
 ## Прохід: знайди повільний ендпоінт
 
-1. Зробити трафік: `curl "localhost:8080/demo/pool/slow?seconds=2&n=20"` два-три рази і кілька `curl localhost:8080/posts`.
+1. Зробити трафік: `curl -H "Authorization: Bearer $TOKEN" "localhost:8080/demo/pool/slow?seconds=2&n=20"` два-три рази (маршрут захищений, токен з `POST /auth/login`) і кілька `curl localhost:8080/posts`.
 2. Grafana, дашборд `devhub`, панель **p95 по маршрутах**: лінія `/demo/pool/slow` на 4 с, `/posts` на мілісекундах. Поруч **Пул Postgres**: `waiting` підскочив до 10. Це відповідь на "ЩО повільне": один маршрут, і він чекає на пул.
 3. Jaeger: Service `api-1` (або `api-2`), Operation `GET /demo/pool/slow`, Find Traces, відкрити трейс. 20 пар `pg-pool.connect` і `pg.query:SELECT`, у другої десятки `pg-pool.connect` триває 2 с. Це відповідь на "ДЕ всередині запиту": не SQL повільний, а очікування з'єднання (детально у [docs/tracing.md](tracing.md), прохід 2).
 4. Логи того самого запиту: у відповіді `curl -i` є заголовок `X-Request-Id`. У Grafana вгорі дашборда поле `requestId`, вставити значення: панель **Логи api-1** показує лише рядки цього запиту (`GET /demo/pool/slow 200 4031ms`). Якщо запит пішов на `api-2`, у запиті панелі змінити `service="api-1"` на `api-2`. Те саме без Grafana: `docker compose logs api-1 | grep <requestId>`.

@@ -1,5 +1,5 @@
 // e2e: фундамент. health, request id, форма помилки, 404.
-import { TestApp, createTestApp } from '../helpers/app';
+import { TestApp, createTestApp, registerUser, bearer } from '../helpers/app';
 
 describe('foundation (e2e)', () => {
   let t: TestApp;
@@ -37,8 +37,17 @@ describe('foundation (e2e)', () => {
   });
 
   it('/openapi.json віддає документ Swagger', async () => {
-    // У тестовому застосунку Swagger не монтується (це робить main.ts). Перевіряємо хоча б, що маршрут posts у Nest є.
-    await t.http().get('/posts').expect(200);
+    const res = await t.http().get('/openapi.json').expect(200);
+    expect(res.body.openapi).toMatch(/^3\./);
+    expect(res.body.paths['/posts']).toBeDefined();
+    expect(res.body.paths['/auth/login']).toBeDefined();
+  });
+
+  it('/demo/pool/slow вимагає токен (анонім не може зайняти пул)', async () => {
+    await t.http().get('/demo/pool/slow?seconds=1&n=2').expect(401);
+    const user = await registerUser(t, 'pool@test.local');
+    const res = await t.http().get('/demo/pool/slow?seconds=1&n=2').set(bearer(user)).expect(200);
+    expect(res.body.requested).toBe(2);
   });
 
   it('/demo/sql-injection недоступний поза development', async () => {

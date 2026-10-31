@@ -8,6 +8,14 @@ import { randomUUID } from 'node:crypto';
 import { runWithRequestId } from './request-context';
 import { AppLogger } from './app-logger';
 
+// Query-параметри, значення яких не можна писати в лог: SSE передає JWT у ?token= (EventSource не вміє заголовки).
+const SECRET_QUERY_PARAMS = /([?&](?:token|access_token|refresh_token|key|password)=)[^&#]*/gi;
+
+/** Шлях + query для логу, зі значеннями секретних параметрів, заміненими на [redacted]. */
+export function redactUrl(originalUrl: string): string {
+  return originalUrl.replace(SECRET_QUERY_PARAMS, '$1[redacted]');
+}
+
 @Injectable()
 export class RequestIdMiddleware implements NestMiddleware {
   private readonly logger = new AppLogger('HTTP');
@@ -19,7 +27,7 @@ export class RequestIdMiddleware implements NestMiddleware {
     const started = Date.now();
     runWithRequestId(requestId, () => {
       res.on('finish', () => {
-        this.logger.info(`${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - started}ms`);
+        this.logger.info(`${req.method} ${redactUrl(req.originalUrl)} ${res.statusCode} ${Date.now() - started}ms`);
       });
       next();
     });

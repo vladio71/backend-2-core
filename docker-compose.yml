@@ -6,7 +6,7 @@
 # Без --profile ці чотири сервіси не стартують, звичайний docker compose up --build працює як і раніше. Див. docs/observability.md.
 
 x-app-env: &app-env
-  NODE_ENV: development
+  NODE_ENV: ${NODE_ENV:-development}
   DATABASE_URL: postgres://devhub:devhub@postgres:5432/devhub
   REDIS_URL: redis://redis:6379
   JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me-0123456789}

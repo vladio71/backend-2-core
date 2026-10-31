@@ -5,6 +5,7 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Request, Response } from 'express';
 import {
+  BadRequestError,
   ConflictError,
   DomainError,
   ForbiddenError,
@@ -31,6 +32,7 @@ interface ValidationResponse {
 }
 
 function statusForDomainError(error: DomainError): number {
+  if (error instanceof BadRequestError) return HttpStatus.BAD_REQUEST;
   if (error instanceof NotFoundError) return HttpStatus.NOT_FOUND;
   if (error instanceof ConflictError) return HttpStatus.CONFLICT;
   if (error instanceof UnauthorizedError) return HttpStatus.UNAUTHORIZED;

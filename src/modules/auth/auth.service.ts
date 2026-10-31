@@ -80,9 +80,7 @@ export class AuthService {
       throw new UnauthorizedError('Refresh-токен відкликано');
     }
     if (stored.usedAt) {
-      // Повторне використання спаленого токена: хтось має копію. Відкликаємо всю сім'ю.
-      this.logger.warn(`Повторне використання refresh-токена, сім'я ${stored.familyId} відкликана`);
-      await this.refreshRepo.update({ familyId: stored.familyId }, { revokedAt: new Date() });
+      await this.revokeFamilyOnReuse(stored.familyId);
       throw new UnauthorizedError('Refresh-токен уже використано. Увійди знову');
     }
     if (stored.expiresAt.getTime() < Date.now()) {
@@ -92,9 +90,29 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedError('Користувача не існує');
     }
-    // Ротація: старий позначаємо використаним, видаємо новий у тій самій сім'ї.
-    await this.refreshRepo.update({ id: stored.id }, { usedAt: new Date() });
+    // Ротація: "спалити" старий токен треба АТОМАРНО. Схема "прочитав usedAt, потім записав" має гонку:
+    // п'ять паралельних запитів з одним токеном усі бачать usedAt = null і всі отримують нову пару.
+    // UPDATE ... WHERE used_at IS NULL виконає лише один з них (affected = 1); решта побачить 0 рядків,
+    // а це те саме, що повторне використання: відкликаємо сім'ю і віддаємо 401.
+    // Задокументована поведінка: з N паралельних refresh одним токеном рівно один отримує 200,
+    // інші 401, і сім'я відкликається (токен переможця теж, якщо він уже записаний на момент відкликання).
+    const burned = await this.refreshRepo
+      .createQueryBuilder()
+      .update(RefreshToken)
+      .set({ usedAt: () => 'now()' })
+      .where('id = :id AND used_at IS NULL', { id: stored.id })
+      .execute();
+    if (burned.affected !== 1) {
+      await this.revokeFamilyOnReuse(stored.familyId);
+      throw new UnauthorizedError('Refresh-токен уже використано. Увійди знову');
+    }
     return this.issueTokens(user, stored.familyId);
+  }
+
+  // Повторне використання спаленого токена: хтось має копію. Відкликаємо всю сім'ю.
+  private async revokeFamilyOnReuse(familyId: string): Promise<void> {
+    this.logger.warn(`Повторне використання refresh-токена, сім'я ${familyId} відкликана`);
+    await this.refreshRepo.update({ familyId }, { revokedAt: new Date() });
   }
 
   async logout(rawToken: string): Promise<void> {

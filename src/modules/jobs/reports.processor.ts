@@ -10,7 +10,7 @@ import { Job } from 'bullmq';
 import { Repository } from 'typeorm';
 import { Report, ReportStatus } from './report.entity';
 import { REPORTS_QUEUE, ReportJobData } from './queues';
-import { ReportEventsService } from './report-events.service';
+import { ReportEventsPublisher } from './report-events.publisher';
 import { APP_CONFIG } from '../config/config.module';
 import { AppConfig } from '../config/config.schema';
 import { AppLogger } from '../logging/app-logger';
@@ -26,7 +26,7 @@ export class ReportsProcessor extends WorkerHost {
 
   constructor(
     @InjectRepository(Report) private readonly reports: Repository<Report>,
-    private readonly events: ReportEventsService,
+    private readonly events: ReportEventsPublisher,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     // Глобальний модуль метрик (MetricsWorkerModule у воркері, MetricsModule у e2e-тестах).
     private readonly metrics: MetricsService,

@@ -65,8 +65,19 @@ export class TokenBucketService {
     this.refillPerSecond = config.RATE_LIMIT_CAPACITY / config.RATE_LIMIT_WINDOW_SECONDS;
   }
 
+  // ТІЛЬКИ ДЛЯ ДЕМО (сторінка "Rate limit"): видалити відро, наступний запит почне з повного.
+  async reset(subject: string): Promise<void> {
+    await this.redis.del(`ratelimit:${subject}`);
+  }
+
   async take(subject: string, cost = 1): Promise<BucketDecision> {
     const now = Date.now();
+    // Lua повертає таблицю { allowed, tokens }, а Redis перетворює Lua-числа на цілі (дробова частина відкидається).
+    // Тому `tokens` тут уже ціле (вниз), хоча всередині відра токени дробові (HSET зберігає їх як рядок). Math.floor нижче
+    // нічого не міняє, але робить намір явним. Побічний ефект: retryAfter рахується від цілого, тож це верхня оцінка
+    // (до секунди запасу). Хочеш дроби: у Lua `return { allowed, tostring(tokens) }`.
+    // Для production: EVAL щоразу шле весь текст скрипта. Краще EVALSHA (SCRIPT LOAD один раз і далі лише SHA1);
+    // ioredis робить це сам через redis.defineCommand(...), з автоматичним fallback на EVAL при NOSCRIPT.
     const raw = (await this.redis.eval(LUA_TAKE, 1, `ratelimit:${subject}`, this.capacity, this.refillPerSecond, now, cost)) as [number, string];
     const allowed = Number(raw[0]) === 1;
     const tokens = Number(raw[1]);

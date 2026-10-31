@@ -1,5 +1,5 @@
 // Що це: HTTP для кредитів. topup тільки для admin (@Roles).
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsInt, IsUUID, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -46,8 +46,16 @@ export class CreditsController {
   }
 
   @Post('reserve')
-  reserve(@CurrentUser() user: AccessTokenPayload, @Body() dto: ReserveDto) {
+  reserve(@CurrentUser() user: AccessTokenPayload, @Body() dto: ReserveDto, @Query('unsafe') unsafe?: string) {
+    // ?unsafe=true: демо гонки без локу, вимкнено у production (див. reserveUnsafe).
+    if (unsafe === 'true') return this.credits.reserveUnsafe(user.sub, dto.amount);
     return this.credits.reserve(user.sub, dto.amount);
+  }
+
+  // Демо: баланс 100 і без активних резервацій, щоб кожна кнопка на сторінці починалась з чистого стану. Не для production.
+  @Post('demo/reset')
+  demoReset(@CurrentUser() user: AccessTokenPayload) {
+    return this.credits.demoReset(user.sub);
   }
 
   @Post('reservations/:id/confirm')

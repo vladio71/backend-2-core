@@ -12,6 +12,11 @@ describe('github (e2e, mock api)', () => {
   beforeAll(async () => {
     server = http.createServer((req, res) => {
       hits += 1;
+      if (req.url?.startsWith('/users/slowdown/')) {
+        res.writeHead(429, { 'Retry-After': '120', 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ message: 'rate limited' }));
+        return;
+      }
       if (hits === 1) {
         res.writeHead(429, { 'Retry-After': '1', 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ message: 'rate limited' }));
@@ -58,5 +63,13 @@ describe('github (e2e, mock api)', () => {
     const res = await t.http().post('/github/import').set(bearer(user)).send({ username: 'nobody-here' }).expect(502);
     expect(res.body.code).toBe('GITHUB_NOT_FOUND');
     await t.http().post('/github/import').set(bearer(user)).send({ username: 'bad name!' }).expect(400);
+  });
+
+  it('Retry-After більше 30 с: не чекаємо, віддаємо 429 з тим самим Retry-After', async () => {
+    const started = Date.now();
+    const res = await t.http().post('/github/import').set(bearer(user)).send({ username: 'slowdown' }).expect(429);
+    expect(res.body.code).toBe('GITHUB_RATE_LIMITED');
+    expect(res.headers['retry-after']).toBe('120');
+    expect(Date.now() - started).toBeLessThan(5000);
   });
 });

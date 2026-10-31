@@ -26,6 +26,10 @@ export class SqlInjectionController {
       return { safe, sql: `${sql}   -- $1 = ${JSON.stringify(q)}`, rows };
     }
     // НІКОЛИ так не роби. Рядок користувача стає частиною SQL.
+    // Без параметрів pg використовує simple query protocol, який приймає КІЛЬКА команд через `;`. Тож небезпечний не
+    // лише `' OR 1=1 --` (витік усіх email), а й `'; DROP TABLE users; --` або `'; UPDATE users SET role='admin' --`:
+    // друга команда виконається поруч із SELECT. З параметрами ($1) використовується extended protocol: одна команда,
+    // значення окремо. Саме тому демо доступне лише в development.
     const sql = `SELECT id, email FROM users WHERE email = '${q}'`;
     const rows = await this.dataSource.query(sql);
     return { safe, sql, rows };

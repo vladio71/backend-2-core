@@ -2,7 +2,7 @@
 
 ## Що це
 - `GET /demo/pool/stats`: `max`, `total`, `idle`, `waiting` з `pg.Pool` (TypeORM тримає його у `driver.master`).
-- `GET /demo/pool/slow?seconds=1&n=20`: 20 паралельних `SELECT pg_sleep(1)`. Виміряно з `DB_POOL_MAX=10`:
+- `GET /demo/pool/slow?seconds=1&n=20` (потрібен Bearer-токен; межі `seconds` 1..5 і `n` 1..30, бо анонімний виклик міг би зайняти весь пул і покласти `/health`): 20 паралельних `SELECT pg_sleep(1)`. Виміряно з `DB_POOL_MAX=10`:
 
 ```
 запит  1..10: waitedForConnection ~20 мс,  total ~1020 мс

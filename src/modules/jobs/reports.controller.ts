@@ -40,6 +40,15 @@ export class ReportsController {
     return this.reports.create(user.sub, dto.failRate ?? 0);
   }
 
+  // Демо: прибрати мої job-и, що чекають у черзі (після flood). Не для production.
+  @Post('demo/drain')
+  @HttpCode(200)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  drain(@CurrentUser() user: AccessTokenPayload) {
+    return this.reports.drainMine(user.sub);
+  }
+
   @Get('queue-stats')
   queueStats() {
     return this.reports.queueStats();
@@ -58,7 +67,44 @@ export class ReportsController {
   async stream(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request, @Res() res: Response): Promise<void> {
     const token = extractBearer(req.headers.authorization) ?? (typeof req.query.token === 'string' ? req.query.token : null);
     const user = this.jwt.verify(token ?? '');
-    const report = await this.reports.get(user.sub, id);
+    // Порядок важливий: СПОЧАТКУ підписка, ПОТІМ читання звіту з БД. Якщо читати першим, подія, що прилетіла між
+    // SELECT і subscribe(), губиться назавжди (особливо "completed": стрім тоді висить до розриву з'єднання).
+    // Поки знімок з БД ще не відправлений, події складаємо в буфер, щоб не писати їх раніше за знімок.
+    const buffered: ReportEvent[] = [];
+    let live = false;
+    let finished = false;
+    let unsubscribe: () => void = () => undefined;
+    let keepAlive: NodeJS.Timeout | null = null;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (keepAlive) clearInterval(keepAlive);
+      unsubscribe();
+      res.end();
+    };
+    const send = (event: ReportEvent) => {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+      if (event.status === 'completed' || event.status === 'failed') finish();
+    };
+    unsubscribe = this.events.subscribe((event) => {
+      if (event.reportId !== id || finished) return;
+      if (live) send(event);
+      else buffered.push(event);
+    });
+    req.on('close', () => {
+      finished = true;
+      if (keepAlive) clearInterval(keepAlive);
+      unsubscribe();
+    });
+
+    let report;
+    try {
+      report = await this.reports.get(user.sub, id); // 404 для чужого звіту: підписку прибираємо, лишати її не можна
+    } catch (err) {
+      unsubscribe();
+      throw err;
+    }
+    if (finished) return; // клієнт пішов, поки читали БД
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -66,26 +112,14 @@ export class ReportsController {
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
     });
-    const send = (event: ReportEvent) => res.write(`data: ${JSON.stringify(event)}\n\n`);
-
-    // Поточний стан одразу, щоб клієнт не чекав наступної події.
+    // Поточний стан одразу, щоб клієнт не чекав наступної події. Завершений звіт: відправили і закрили.
     send({ reportId: report.id, userId: report.userId, status: report.status, progress: report.progress, attempt: report.attempts, result: report.result ?? undefined, error: report.error ?? undefined, at: new Date().toISOString() });
-    if (report.status === 'completed' || report.status === 'failed') {
-      res.end();
-      return;
-    }
-    const unsubscribe = this.events.subscribe((event) => {
-      if (event.reportId !== id) return;
+    if (finished) return;
+    live = true;
+    for (const event of buffered) {
       send(event);
-      if (event.status === 'completed' || event.status === 'failed') {
-        unsubscribe();
-        res.end();
-      }
-    });
-    const keepAlive = setInterval(() => res.write(': ping\n\n'), 15000);
-    req.on('close', () => {
-      clearInterval(keepAlive);
-      unsubscribe();
-    });
+      if (finished) return;
+    }
+    keepAlive = setInterval(() => res.write(': ping\n\n'), 15000);
   }
 }

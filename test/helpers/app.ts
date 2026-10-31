@@ -12,7 +12,7 @@ import { JobsWorkerModule } from '../../src/modules/jobs/jobs-worker.module';
 import { loadConfig } from '../../src/modules/config/config.module';
 import { buildDataSourceOptions } from '../../src/modules/database/data-source-options';
 import { entities } from '../../src/entities';
-import { setupApp } from '../../src/app-setup';
+import { setupApp, setupOpenApi } from '../../src/app-setup';
 import { AppLogger } from '../../src/modules/logging/app-logger';
 
 export const config = loadConfig();
@@ -50,6 +50,7 @@ export async function createTestApp(options: { withWorker?: boolean } = {}): Pro
   const moduleRef = await Test.createTestingModule({ imports: [options.withWorker ? TestRootModule : AppModule] }).compile();
   const app = moduleRef.createNestApplication({ logger: new AppLogger('Test') });
   setupApp(app, config.REDIS_URL);
+  setupOpenApi(app);
   await app.init();
   await app.listen(0);
   const address = app.getHttpServer().address() as { port: number };
