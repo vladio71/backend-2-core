@@ -11,7 +11,7 @@
     "down": "node scripts/down.mjs",
     "setup": "npm install && npm install --prefix learn",
     "postinstall": "node scripts/postinstall.mjs",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "nest build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test scripts",
     "deps:check": "depcruise src --config .dependency-cruiser.cjs",
@@ -74,6 +74,7 @@
   "devDependencies": {
     "@compodoc/compodoc": "2.0.0",
     "@eslint/js": "10.0.1",
+    "@nestjs/cli": "^11.0.10",
     "@nestjs/testing": "11.2.8",
     "@types/bcryptjs": "3.0.0",
     "@types/express": "5.0.6",
