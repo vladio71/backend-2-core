@@ -11,6 +11,7 @@ x-app-env: &app-env
   REDIS_URL: redis://redis:6379
   JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me-0123456789}
   CORS_ORIGINS: http://localhost:${GATEWAY_PORT:-8080},http://localhost:${LEARN_PORT:-5173}
+  LEARN_URL: http://localhost:${LEARN_PORT:-5173}
   DB_POOL_MAX: ${DB_POOL_MAX:-10}
   QUEUE_MAX_WAITING: ${QUEUE_MAX_WAITING:-100}
   WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}

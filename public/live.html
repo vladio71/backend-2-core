@@ -30,6 +30,20 @@
 <body>
 <main>
   <h1>devhub: live demo <span class="muted" id="instance"></span></h1>
+  <p class="muted" id="learn-hint">
+    Це мінімальна тестова сторінка без пояснень. Та сама дошка, presence і порівняння polling / SSE / WebSocket з текстом про те, що відбувається і на що дивитись,
+    є в learn на сторінці "Живе": <a id="learn-link" href="#">відкрити в learn</a>. Тут корисно одне: відкрити цю сторінку у 2-3 вкладках і помалювати в одній.
+  </p>
+  <script>
+    // learn живе на іншому порту (типово 5173, або той, що вибрав npm run up і записав у .env як LEARN_PORT).
+    // Сервер підставляє його через заголовок X-Learn-Url; якщо заголовка немає, беремо типовий.
+    (function () {
+      var link = document.getElementById('learn-link');
+      var meta = document.querySelector('meta[name="learn-url"]');
+      var url = (meta && meta.content) || 'http://localhost:5173';
+      link.href = url.replace(/\/$/, '') + '/live';
+    })();
+  </script>
 
   <section>
     <h2>1. Логін</h2>

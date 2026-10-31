@@ -14,7 +14,7 @@ socket.io namespace `/live`, JWT у `handshake.auth.token`. Після підк�
 
 Presence у Redis: ключ `presence:<userId>` з TTL 30 с і лічильник вкладок `presence:conn:<userId>`; heartbeat кожні 10 с. Якщо процес API впав, ключі зникнуть самі.
 
-Демо: `GET /demo/live` (один HTML-файл `public/live.html`): логін, кнопка "Запустити звіт" з трьома прогрес-барами (polling, SSE, WebSocket) і лічильниками HTTP-запитів, список онлайн, canvas. Відкрий у 3 вкладках.
+Демо з поясненнями: learn, сторінка "Живе" (http://localhost:5173/live): логін, звіт з трьома каналами (polling, SSE, WebSocket) і лічильниками HTTP-запитів, список онлайн, дошка. Відкрий у 3 вкладках. Є ще мінімальна сторінка без тексту `GET /demo/live` (один файл `public/live.html`), вона лишилась для швидкої перевірки без learn.
 
 ### Два інстанси і Redis-адаптер
 `docker compose` піднімає `api-1` і `api-2` за nginx (round robin, без sticky). Вкладка A підключилась до api-1, вкладка B до api-2. `server.to('board').emit(...)` на api-1 без адаптера дійде тільки до сокетів api-1. `@socket.io/redis-adapter` публікує emit у Redis, і api-2 повторює його своїм сокетам.
