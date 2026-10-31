@@ -73,7 +73,6 @@ export function SqlPage() {
     });
     return { name: author, color: authorColors[index % authorColors.length], points };
   });
-  const everyDayOnePost = rows.length > 0 && rows.every((r) => r.posts === 1);
 
   const maxExec = Math.max(seq?.executionTimeMs ?? 0, idx?.executionTimeMs ?? 0, 0.001);
 
@@ -104,8 +103,9 @@ export function SqlPage() {
             сумою лайків. Віконна функція <code>sum(count(*)) OVER (PARTITION BY автор ORDER BY день)</code>: накопичений підсумок по автору без другого запиту.
           </p>
           <p>
-            На що дивитись: колонка runningTotal це сума саме цього автора на цей день, а не всіх разом. У сіді один пост на день, автори чергуються, тому
-            Olena має 9 на 10-28 і 10 на 10-31. Графік показує runningTotal по кожному автору: три сходинки, що ростуть по черзі.
+            На що дивитись: колонка runningTotal це накопичена сума саме цього автора, а не всіх разом. У сіді автори пишуть нерівномірно: Olena майже
+            щодня, Iryna рідко, і в один день буває кілька постів. На графіку в кого крива крутіша, той пише частіше; плато означає день без постів.
+            Постав days=30, щоб побачити повну картину.
           </p>
         </div>
         <div className="row">
@@ -119,7 +119,7 @@ export function SqlPage() {
         </div>
         {rows.length > 0 && (
           <div data-testid="report-chart">
-            <div className="chart-title">runningTotal по авторах за день{everyDayOnePost ? ' (у сіді рівно один пост на день)' : ''}</div>
+            <div className="chart-title">runningTotal по авторах за день</div>
             <LineChart series={series} height={170} />
             <table className="tbl small" style={{ marginTop: 8 }}>
               <thead>

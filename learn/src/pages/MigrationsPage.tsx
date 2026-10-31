@@ -42,7 +42,14 @@ export function MigrationsPage() {
   const [postId, setPostId] = useState<string | null>(null);
 
   function push(label: string, expect: string, exchange: ApiExchange) {
-    setSteps((prev) => [...prev, { label, expect, exchange }]);
+    // Повторний клік по тому самому кроку (наприклад, "restore ще раз") оновлює рядок, а не додає новий.
+    setSteps((prev) => {
+      const index = prev.findIndex((step) => step.label === label);
+      if (index === -1) return [...prev, { label, expect, exchange }];
+      const next = prev.slice();
+      next[index] = { label, expect, exchange };
+      return next;
+    });
     return exchange;
   }
 

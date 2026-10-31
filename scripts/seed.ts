@@ -56,29 +56,43 @@ export async function runSeed(dataSource: DataSource, options: { events?: number
     const hasVector = await vectorColumnExists(dataSource);
     const embedder = new FakeEmbeddingProvider();
     const authors = saved.slice(1);
-    for (let i = 0; i < 30; i++) {
-      const author = authors[i % authors.length];
-      const title = `${TITLES[i % TITLES.length]} #${i + 1}`;
-      const body = `Пост ${i + 1}. ${TITLES[i % TITLES.length]}. Трохи тексту про ${TAGS[i % TAGS.length]} і ${TAGS[(i + 3) % TAGS.length]}.`;
-      const post = await posts.save(
-        posts.create({
-          title,
-          body,
-          tags: [TAGS[i % TAGS.length], TAGS[(i + 3) % TAGS.length]],
-          status: i % 3 === 0 ? 'draft' : 'published',
-          likes: (i * 7) % 50,
-          meta: { seo: { title, description: `SEO для поста ${i + 1}` } },
-          authorId: author.id,
-          publishedAt: i % 3 === 0 ? null : new Date(Date.now() - i * 86_400_000),
-        }),
-      );
-      // Розкидаємо created_at по 30 днях, щоб звіт posts-per-day мав що групувати.
-      await dataSource.query(`UPDATE posts SET created_at = now() - ($1 || ' days')::interval WHERE id = $2`, [String(i), post.id]);
-      if (hasVector) {
-        await dataSource.query(`UPDATE posts SET embedding = $1::vector WHERE id = $2`, [toVectorLiteral(await embedder.embed(`${title}\n${body}`)), post.id]);
+    // Пости за 30 днів, нерівномірно: перший автор пише майже щодня, другий через день, третій рідко,
+    // і в один день буває кілька постів. Так звіт posts-per-day і runningTotal показують різні криві,
+    // а не "один пост на день по черзі".
+    const activity = [0.9, 0.5, 0.25];
+    let i = 0;
+    for (let daysAgo = 29; daysAgo >= 0; daysAgo--) {
+      for (let a = 0; a < authors.length; a++) {
+        // детермінований "випадок": той самий сід при кожному запуску
+        const roll = ((daysAgo * 7 + a * 13) % 10) / 10;
+        if (roll >= activity[a % activity.length]) continue;
+        const author = authors[a];
+        const title = `${TITLES[i % TITLES.length]} #${i + 1}`;
+        const body = `Пост ${i + 1}. ${TITLES[i % TITLES.length]}. Трохи тексту про ${TAGS[i % TAGS.length]} і ${TAGS[(i + 3) % TAGS.length]}.`;
+        const post = await posts.save(
+          posts.create({
+            title,
+            body,
+            tags: [TAGS[i % TAGS.length], TAGS[(i + 3) % TAGS.length]],
+            status: i % 5 === 0 ? 'draft' : 'published',
+            likes: (i * 7) % 50,
+            meta: { seo: { title, description: `SEO для поста ${i + 1}` } },
+            authorId: author.id,
+            publishedAt: i % 5 === 0 ? null : new Date(Date.now() - daysAgo * 86_400_000),
+          }),
+        );
+        await dataSource.query(`UPDATE posts SET created_at = now() - ($1 || ' days')::interval - ($2 || ' hours')::interval WHERE id = $3`, [
+          String(daysAgo),
+          String(a * 3),
+          post.id,
+        ]);
+        if (hasVector) {
+          await dataSource.query(`UPDATE posts SET embedding = $1::vector WHERE id = $2`, [toVectorLiteral(await embedder.embed(`${title}\n${body}`)), post.id]);
+        }
+        i++;
       }
     }
-    log('Постів: 30');
+    log(`Постів: ${i}`);
   } else {
     log(`Постів уже є: ${existingPosts}, пропускаю`);
   }

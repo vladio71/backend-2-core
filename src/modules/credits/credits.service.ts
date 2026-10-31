@@ -60,6 +60,9 @@ export class CreditsService {
       //   T1: SELECT balance -> 50        T2: SELECT balance -> 50
       //   T1: 50 >= 10, ok                T2: 50 >= 10, ok
       //   T1: UPDATE balance = 40         T2: UPDATE balance = 40   <- загублене списання
+      // Рядка балансу може ще не бути (новий користувач без поповнень): створюємо з нулем, щоб відповідь була
+      // "недостатньо кредитів" (422), а не "не знайдено" (404). ON CONFLICT DO NOTHING безпечний при гонці.
+      await manager.query(`INSERT INTO credit_balances (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING`, [userId]);
       const balance = await manager.findOne(CreditBalance, { where: { userId }, lock: { mode: 'pessimistic_write' } });
       if (!balance) throw new NotFoundError('CreditBalance', userId);
       if (balance.balance < amount) {
