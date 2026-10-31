@@ -61,8 +61,8 @@ scripts/smoke.sh             # прохід по всіх ендпоінтах
 | 7 | Логи, request-id і health | logging, health | X-Request-Id, JSON-логер, той самий requestId у воркері, GET /health по кожній залежності | [logging](docs/modules/logging.md), [health](docs/modules/health.md) |
 | 8 | Тести і CI | test/, .github/workflows | unit / int / e2e, що підміняємо на кожному рівні, кроки CI, завдання "напиши сам" | [testing](docs/testing.md) |
 | 9 | Кредити і локи | credits | SELECT FOR UPDATE, 20 паралельних резервацій, CHECK, крон | [credits](docs/modules/credits.md) |
-| 10 | Черга і воркер | jobs | BullMQ, окремий воркер, 202 + SSE, retry, backpressure, батчинг x47 | [jobs](docs/modules/jobs.md) |
-| 11 | Живе: polling, SSE, WebSocket | live | socket.io, presence, дошка, Redis-адаптер на двох інстансах | [live](docs/modules/live.md) |
+| 10 | Черга і воркер: polling, SSE, WebSocket | jobs | BullMQ, окремий воркер, 202 + SSE, retry, backpressure, батчинг x47 | [jobs](docs/modules/jobs.md) |
+| 11 | Живе: presence і дошка | live | socket.io, presence, дошка, Redis-адаптер на двох інстансах | [live](docs/modules/live.md) |
 | 12 | Пул з'єднань | pool | чому запити 11-20 чекають, три помилки з пулом | [pool](docs/modules/pool.md) |
 | 13 | Rate limit | ratelimit | token bucket на Lua, порівняння з throttler | [ratelimit](docs/modules/ratelimit.md) |
 | 14 | Безпека | security | helmet, CORS, bcrypt, демо SQL-ін'єкції | [security](docs/modules/security.md) |

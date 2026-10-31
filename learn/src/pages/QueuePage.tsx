@@ -202,7 +202,7 @@ export function QueuePage() {
 
   return (
     <>
-      <PageTitle title="Черга і воркер" sub="BullMQ, окремий процес воркера, 202 + три способи стежити за job-ом, backpressure, батчинг" />
+      <PageTitle title="Черга і воркер: polling, SSE, WebSocket" sub="BullMQ, окремий процес воркера, 202 + три способи стежити за job-ом, backpressure, батчинг" />
       <Explain>
         <p>
           <b>Як це працює на бекенді.</b> POST /reports створює рядок у таблиці reports, кладе job у чергу BullMQ (Redis) і одразу відповідає{' '}

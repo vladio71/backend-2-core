@@ -45,8 +45,8 @@ npm run verify       # Playwright: проходить усі сторінки, �
 | 8 | Логи, request-id і health | GET /health по кожній залежності, свій X-Request-Id у запиті повертається у відповіді, як грепнути один запит у логах API і воркера |
 | 9 | Тести і CI | три рівні тестів з прикладом на кожен (unit, int, e2e), кроки ci.yml, завдання "напиши сам" з your-turn.e2e-spec.ts |
 | 10 | Кредити і локи | баланс, topup (admin), 20 паралельних reserve(10) з підрахунком 201/422, confirm і release резервацій |
-| 11 | Черга і воркер | POST /reports (202) і три спостерігачі одного job-а (polling, SSE, WebSocket) з ціною в запитах; стан черги; flood до QUEUE_FULL; 300 подій для батчингу |
-| 12 | Живе: polling, SSE, WebSocket | presence, спільна дошка на canvas (board:draw пачками по 16 мс, board:history, board:clear); відкрий у 3 вкладках |
+| 11 | Черга і воркер: polling, SSE, WebSocket | POST /reports (202) і три спостерігачі одного job-а (polling, SSE, WebSocket) з ціною в запитах; стан черги; flood до QUEUE_FULL; 300 подій для батчингу |
+| 12 | Живе: presence і дошка | presence, спільна дошка на canvas (board:draw пачками по 16 мс, board:history, board:clear); відкрий у 3 вкладках |
 | 13 | Пул з'єднань | /demo/pool/slow з таймлайном кожного запиту (очікування і робота), графік total/idle/waiting з /demo/pool/stats кожні 500 мс |
 | 14 | Rate limit | 15 x POST /posts, статус і X-RateLimit-* кожного, Retry-After при 429, графік токенів у відрі |
 | 15 | Безпека | SQL-ін'єкція safe проти unsafe (тільки в development), що ще робить бекенд: helmet, CORS, bcrypt |

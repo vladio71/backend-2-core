@@ -171,7 +171,7 @@ export function LivePage() {
 
   return (
     <>
-      <PageTitle title="Живе: polling, SSE, WebSocket" sub="socket.io: presence, спільна дошка, Redis-адаптер на двох інстансах" />
+      <PageTitle title="Живе: presence і дошка" sub="socket.io: хто онлайн і спільна дошка в усіх вкладках, Redis-адаптер на двох інстансах. Порівняння polling / SSE / WebSocket на сторінці Черга і воркер" />
       <Explain>
         <p>
           <b>Як це працює на бекенді.</b> Namespace /live, JWT передається в handshake. Після підключення сокет потрапляє в кімнати: своя (за id користувача),
