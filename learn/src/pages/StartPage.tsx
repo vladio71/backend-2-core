@@ -4,7 +4,7 @@ import { apiCall } from '../api/client';
 import { AuthUser, Tokens, decodeJwt, setAuth, useAuth } from '../api/auth';
 import { useLatency } from '../hooks/useLatency';
 import { Panel, pretty } from '../components/Panel';
-import { Card, Explain, PageTitle } from '../components/common';
+import { Card, Explain, PageTitle, WhereInCode } from '../components/common';
 
 interface AuthResponse {
   user: AuthUser;
@@ -94,21 +94,29 @@ export function StartPage() {
       <PageTitle title="Старт" sub="Реєстрація і логін, JWT усередині, refresh з ротацією" />
       <Explain>
         <p>
-          <b>Як це працює на бекенді.</b> <code>POST /auth/login</code> перевіряє пароль через bcrypt і віддає дві речі: <b>access-токен</b> (JWT, 15 хв) і{' '}
-          <b>refresh-токен</b> (32 випадкові байти, 30 днів). Access перевіряється тільки підписом, без запиту до БД: дешево, але його не можна відкликати, тому
-          він короткий. Refresh зберігається в БД як sha256-хеш і його можна відкликати.
+          <b>Як це працює на бекенді.</b> Логін перевіряє пароль через bcrypt і віддає дві речі: <b>access-токен</b> (JWT, 15 хв) і <b>refresh-токен</b>{' '}
+          (32 випадкові байти, 30 днів).
         </p>
         <p>
-          <b>Ротація.</b> Кожен <code>POST /auth/refresh</code> видає нову пару і позначає старий refresh як використаний (<code>used_at</code>). Якщо
-          використаний токен приходить знову, його хтось вкрав: сервер відкликає всю сім'ю (<code>revoked_at WHERE family</code>) і відповідає 401.
+          Access перевіряється тільки підписом, без запиту до БД: дешево, але його не можна відкликати, тому він короткий. Refresh зберігається в БД як
+          sha256-хеш, і його відкликати можна.
         </p>
-        <p className="small muted">
-          Сід має користувачів admin@, olena@, taras@, iryna@devhub.local з паролем password123. Admin потрібен для сторінок Кредити (topup).
+        <p>
+          <b>Ротація.</b> Кожен refresh видає нову пару і позначає старий токен як використаний. Якщо використаний токен приходить знову, його хтось вкрав:
+          сервер відкликає всю сім'ю токенів і відповідає 401.
         </p>
+        <p className="small muted">Сід має користувачів admin@, olena@, taras@, iryna@devhub.local з паролем password123. Admin потрібен для сторінки Кредити (topup).</p>
+        <WhereInCode paths={['src/modules/auth/auth.service.ts', 'jwt.service.ts', 'refresh-token.entity.ts (used_at, revoked_at, family)']} />
       </Explain>
 
       <div className="card-grid">
         <Card title="Форма">
+          <div className="prose">
+            <p>
+              Перевіряємо вхід у систему. Зареєструйся новим email або увійди сід-користувачем: у відповіді мають бути user і пара токенів, а шапка праворуч
+              покаже, хто залогінений. 400 означає, що тіло не пройшло валідацію (назва поля буде в details), 409 що email уже зайнятий.
+            </p>
+          </div>
           <div className="row">
             <button type="button" onClick={() => fillSeed('olena@devhub.local', 'Olena')}>
               olena (user)
@@ -148,6 +156,12 @@ export function StartPage() {
         </Card>
 
         <Card title="JWT розкодований">
+          <div className="prose">
+            <p>
+              Токен це три частини через крапку: header, payload і підпис. Payload читається без секрету (тому в ньому немає нічого таємного), а exp показує,
+              коли він помре: лічильник нижче іде з 15:00 до нуля. Підпис перевіряє сервер, і тільки він.
+            </p>
+          </div>
           {!decoded && <div className="muted">Немає токена. Увійди або зареєструйся.</div>}
           {decoded && (
             <>
@@ -177,6 +191,12 @@ export function StartPage() {
       </div>
 
       <Card title="Refresh з ротацією">
+        <div className="prose">
+          <p>
+            Перевіряємо, що старий refresh не можна використати двічі. Спочатку "Оновити пару": прийде нова пара, а попередній refresh стане "спаленим". Потім
+            "Використати старий ще раз": добре, якщо сервер відповість 401 і відкличе всю сім'ю; якщо прийде 200, ротація не працює.
+          </p>
+        </div>
         <div className="row">
           <button type="button" className="primary" onClick={refresh} disabled={!auth.tokens || latency.busy} data-testid="refresh">
             Оновити пару (POST /auth/refresh)

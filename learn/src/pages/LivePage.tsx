@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Socket } from 'socket.io-client';
 import { useAuth } from '../api/auth';
 import { connectLive } from '../api/live';
-import { Card, Explain, NeedAuth, PageTitle } from '../components/common';
+import { Card, Explain, NeedAuth, PageTitle, WhereInCode } from '../components/common';
 
 interface Point {
   x: number;
@@ -174,22 +174,33 @@ export function LivePage() {
       <PageTitle title="Живе: polling, SSE, WebSocket" sub="socket.io: presence, спільна дошка, Redis-адаптер на двох інстансах" />
       <Explain>
         <p>
-          <b>Як це працює на бекенді.</b> Namespace <code>/live</code>, JWT у <code>handshake.auth.token</code>. Після підключення сокет потрапляє в кімнати{' '}
-          <code>user:&lt;id&gt;</code>, <code>presence</code>, <code>board</code>. Presence у Redis: ключ <code>presence:&lt;userId&gt;</code> з TTL 30 с і
-          лічильник вкладок; heartbeat кожні 10 с. Штрихи дошки лежать у Redis list (до 5000), новий сокет одразу отримує <code>board:history</code>.
+          <b>Як це працює на бекенді.</b> Namespace /live, JWT передається в handshake. Після підключення сокет потрапляє в кімнати: своя (за id користувача),
+          presence і board.
         </p>
         <p>
-          <b>Два інстанси.</b> У docker compose є api-1 і api-2 за nginx без sticky-сесій. <code>server.to('board').emit(...)</code> на api-1 без адаптера дійде
-          тільки до сокетів api-1. <code>@socket.io/redis-adapter</code> публікує emit у Redis, і api-2 повторює його своїм сокетам. Поле <code>instance</code>{' '}
-          у <code>presence:update</code> показує, який інстанс надіслав подію.
+          Presence живе у Redis: ключ на користувача з TTL 30 с і лічильником вкладок, heartbeat кожні 10 с. Штрихи дошки лежать у Redis list (до 5000), новий
+          сокет одразу отримує історію дошки.
         </p>
+        <p>
+          <b>Два інстанси.</b> У docker compose є api-1 і api-2 за nginx без sticky-сесій. emit у кімнату board на api-1 без адаптера дійде тільки до сокетів
+          api-1. Redis-адаптер публікує emit у Redis, і api-2 повторює його своїм сокетам.
+        </p>
+        <p>Поле instance у події presence:update показує, який інстанс надіслав подію.</p>
         <div className="note ok">Відкрий цю сторінку в 3 вкладках: усі побачать одне одного в списку онлайн і штрихи одне одного на дошці.</div>
+        <WhereInCode paths={['src/modules/live/live.gateway.ts', 'presence.service.ts', 'board.service.ts', 'redis-io.adapter.ts (@socket.io/redis-adapter)']} />
       </Explain>
 
       <NeedAuth />
 
       <div className="card-grid">
         <Card title="Хто онлайн (presence:update)">
+          <div className="prose">
+            <p>
+              Відкрий цю сторінку ще у двох вкладках, можна іншим користувачем. У списку мають бути всі, хто зараз підключений; закрита вкладка зникає зі списку
+              за кілька секунд (TTL ключа 30 с, а лічильник вкладок не дає зникнути, поки відкрита хоч одна). instance підказує, який з двох API надіслав подію:
+              якщо він різний у різних вкладках, адаптер через Redis працює.
+            </p>
+          </div>
           <div className="row">
             <span className={`status-dot ${connected ? 'ok' : 'down'}`} />
             <span data-testid="ws-status">{connected ? 'підключено' : 'не підключено'}</span>
@@ -205,6 +216,9 @@ export function LivePage() {
           </ul>
         </Card>
         <Card title="Журнал подій">
+          <div className="prose">
+            <p>Сирі події сокета в порядку надходження: connect, presence:update, board:history, board:draw. Якщо тут тихо, дивись на статус підключення вище.</p>
+          </div>
           <pre className="mono small" style={{ maxHeight: 200, overflow: 'auto' }}>
             {log.join('\n') || 'порожньо'}
           </pre>
@@ -212,6 +226,12 @@ export function LivePage() {
       </div>
 
       <Card title="Дошка (board:draw, board:history, board:clear)">
+        <div className="prose">
+          <p>
+            Малюй мишею: штрих летить на сервер і повертається в усі вкладки, у кожної свій колір. Нова вкладка одразу отримує історію штрихів з Redis.
+            Погано, якби штрих з іншої вкладки не з'являвся: значить, сокети сидять на різних інстансах без спільного адаптера.
+          </p>
+        </div>
         <div className="row">
           <span className="pill">
             мій колір{' '}

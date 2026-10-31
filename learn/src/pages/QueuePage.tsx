@@ -8,7 +8,7 @@ import { getBaseUrl } from '../api/baseUrl';
 import { connectLive } from '../api/live';
 import { useLatency } from '../hooks/useLatency';
 import { Panel } from '../components/Panel';
-import { Card, Explain, NeedAuth, PageTitle, Progress } from '../components/common';
+import { Card, Explain, NeedAuth, PageTitle, Progress, WhereInCode } from '../components/common';
 
 interface ReportEvent {
   reportId: string;
@@ -205,10 +205,12 @@ export function QueuePage() {
       <PageTitle title="Черга і воркер" sub="BullMQ, окремий процес воркера, 202 + три способи стежити за job-ом, backpressure, батчинг" />
       <Explain>
         <p>
-          <b>Як це працює на бекенді.</b> <code>POST /reports</code> створює рядок у <code>reports</code>, кладе job у чергу BullMQ (Redis) і одразу відповідає{' '}
-          <code>202 {'{ id, status: "queued" }'}</code>. Воркер (окремий процес <code>src/worker.ts</code>) бере job, робить 5 кроків по 1 с з{' '}
-          <code>job.updateProgress</code>, при помилці повторює до 3 разів з експоненційним backoff. Статус летить з воркера в API через Redis pub/sub, а API
-          роздає його polling-у, SSE і WebSocket-у.
+          <b>Як це працює на бекенді.</b> POST /reports створює рядок у таблиці reports, кладе job у чергу BullMQ (Redis) і одразу відповідає{' '}
+          <code>202 {'{ id, status: "queued" }'}</code>.
+        </p>
+        <p>
+          Воркер (окремий процес) бере job, робить 5 кроків по 1 с, оновлюючи прогрес, при помилці повторює до 3 разів з експоненційним backoff. Статус летить з
+          воркера в API через Redis pub/sub, а API роздає його polling-у, SSE і WebSocket-у.
         </p>
         <pre>{`клієнт        API                    Redis (BullMQ)        воркер               БД
   |-- POST -->|                         |                     |                   |
@@ -220,17 +222,28 @@ export function QueuePage() {
   |<-- SSE ---|                         |                     |   ...5 кроків...  |
   |<-- WS ----|                         |                     |-- UPDATE done --->|`}</pre>
         <p>
-          <b>Backpressure.</b> Якщо у черзі чекає більше <code>QUEUE_MAX_WAITING</code> (типово 100) job-ів, <code>POST /reports</code> відповідає{' '}
-          <code>429 QUEUE_FULL</code> з <code>Retry-After: 5</code>. Обіцяти те, чого не виконаємо, гірше, ніж чесно сказати "пізніше".
+          <b>Backpressure.</b> Якщо у черзі чекає більше QUEUE_MAX_WAITING (типово 100) job-ів, POST /reports відповідає <code>429 QUEUE_FULL</code> із
+          заголовком Retry-After: 5. Обіцяти те, чого не виконаємо, гірше, ніж чесно сказати "пізніше".
         </p>
         <p>
-          <b>Батчинг.</b> <code>POST /events</code> кладе один job на подію. Воркер черги <code>events</code> має <code>concurrency: 100</code>, і{' '}
-          <code>BatchCollector</code> збирає job-и "у польоті" у пачку до 100 (або 50 мс очікування) і пише ОДНИМ <code>INSERT ... VALUES (...), (...)</code>.
-          Виміряно: 500 одиничних INSERT 459 мс, 5 пачок по 100 рядків 10 мс, прискорення x47.
+          <b>Батчинг.</b> POST /events кладе один job на подію. Воркер черги events має concurrency 100, а колектор збирає job-и "у польоті" у пачку до 100 (або
+          50 мс очікування) і пише ОДНИМ <code>INSERT ... VALUES (...), (...)</code>.
         </p>
+        <p>Виміряно: 500 одиничних INSERT 459 мс, 5 пачок по 100 рядків 10 мс, прискорення x47.</p>
+        <WhereInCode paths={['src/worker.ts', 'modules/jobs/reports.processor.ts', 'report-events.service.ts (pub/sub)', 'batch-collector.ts', 'events.processor.ts']} />
       </Explain>
 
       <Card title="Один звіт, три спостерігачі">
+        <div className="prose">
+          <p>
+            Один звіт на 5 секунд, і три способи дізнатись, як він іде. Три колонки показують той самий job: статус, прогрес, номер спроби. Порівнюй рядок
+            вартості внизу кожної колонки: polling робить новий HTTP-запит щосекунди (6-7 запитів на один звіт), SSE і WebSocket тримають одне з'єднання і
+            отримують 5-6 подій.
+          </p>
+          <p>
+            Добре: усі три доходять до completed з прогресом 100. Постав failRate 0.5, щоб побачити attempt 2 і 3 і, можливо, failed після третьої спроби.
+          </p>
+        </div>
         <NeedAuth />
         <div className="row">
           <label>
@@ -268,6 +281,12 @@ export function QueuePage() {
 
       <div className="card-grid">
         <Card title="Стан черги (GET /reports/queue-stats щосекунди)">
+          <div className="prose">
+            <p>
+              Лічильники BullMQ: waiting скільки job-ів чекають воркера, active скільки виконуються зараз (не більше за WORKER_CONCURRENCY), completed і
+              failed за весь час. Якщо воркер не запущений, waiting росте, а active лишається 0.
+            </p>
+          </div>
           {stats ? (
             <div className="row" data-testid="queue-stats">
               <span className="pill">
@@ -300,6 +319,12 @@ export function QueuePage() {
         </Card>
 
         <Card title="Flood: впертися в QUEUE_FULL">
+          <div className="prose">
+            <p>
+              Перевіряємо backpressure: шлемо більше звітів, ніж черга погоджується тримати. Добре, коли частина відповідей 202, а решта 429 QUEUE_FULL з
+              Retry-After, і waiting у стані черги не перевищує ліміт. Погано, якби усі 202 проходили, а черга росла без межі.
+            </p>
+          </div>
           <div className="row">
             <label>
               N звітів одночасно
@@ -328,6 +353,12 @@ export function QueuePage() {
         </Card>
 
         <Card title="300 подій: батчинг у воркері">
+          <div className="prose">
+            <p>
+              300 окремих POST /events, кожен кладе свій job. Дивись у логи воркера: замість 300 INSERT він пише кілька пачок по 100 рядків. Тут видно тільки
+              час і кількість 202; скільки саме пачок вийшло, показує лог воркера "Записано пачку подій: N".
+            </p>
+          </div>
           <div className="row">
             <button type="button" className="primary" onClick={() => void send300()} disabled={!auth.tokens || eventsBusy} data-testid="send-events">
               {eventsBusy ? 'надсилаю...' : '300 x POST /events'}

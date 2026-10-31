@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { apiCall } from '../api/client';
 import { useLatency } from '../hooks/useLatency';
 import { Panel } from '../components/Panel';
-import { Card, Explain, PageTitle } from '../components/common';
+import { Card, Explain, PageTitle, WhereInCode } from '../components/common';
 
 interface Timing {
   index: number;
@@ -72,10 +72,12 @@ export function PoolPage() {
       <PageTitle title="Пул з'єднань" sub="Чому запити 11-20 чекають і три класичні помилки з пулом" />
       <Explain>
         <p>
-          <b>Як це працює на бекенді.</b> Postgres створює процес на кожне з'єднання, тому їх мало (<code>max_connections</code> типово 100). Пул у застосунку
-          тримає <code>DB_POOL_MAX=10</code> з'єднань відкритими і видає їх запитам по черзі. Коли всі зайняті, новий запит чекає{' '}
-          <code>DB_ACQUIRE_TIMEOUT_MS</code>, потім помилка. <code>/demo/pool/slow</code> запускає n паралельних <code>SELECT pg_sleep(seconds)</code> і міряє
-          окремо очікування з'єднання і загальний час.
+          <b>Як це працює на бекенді.</b> Postgres створює процес на кожне з'єднання, тому їх мало (max_connections типово 100). Пул у застосунку тримає
+          DB_POOL_MAX=10 з'єднань відкритими і видає їх запитам по черзі.
+        </p>
+        <p>
+          Коли всі зайняті, новий запит чекає DB_ACQUIRE_TIMEOUT_MS, потім помилка. Демо-ендпоінт запускає n паралельних <code>SELECT pg_sleep(seconds)</code>{' '}
+          і міряє окремо очікування з'єднання і загальний час.
         </p>
         <pre>{`запит  1..10: waitedForConnection ~20 мс,   total ~1020 мс
 запит 11..20: waitedForConnection ~1020 мс, total ~2030 мс    <- чекали, поки перші 10 звільнять з'єднання`}</pre>
@@ -85,9 +87,20 @@ export function PoolPage() {
           <li>Зовнішній HTTP-виклик всередині транзакції: BEGIN, fetch у Stripe на 2 с, COMMIT. Якщо Stripe завис, завис і пул.</li>
           <li>Пул завеликий: max 100 на кожному з 5 процесів = 500 &gt; max_connections. Більший пул не дає більше паралелізму, ніж є ядер у Postgres.</li>
         </ol>
+        <WhereInCode paths={['src/modules/pool/pool.controller.ts (/demo/pool/slow)', 'database/data-source-options.ts (DB_POOL_MAX, DB_ACQUIRE_TIMEOUT_MS)']} />
       </Explain>
 
       <Card title="Запустити">
+        <div className="prose">
+          <p>
+            Пул має 10 з'єднань, а ми запускаємо n запитів по seconds секунд одночасно. "Чекали на з'єднання" це запити, яким не дісталось вільного з'єднання
+            одразу: сіра частина смужки в таймлайні, а waiting у pool stats показує їх кількість у кожен момент.
+          </p>
+          <p>
+            При n=20 і 1 секунді добре виглядає так: перші 10 без очікування і total близько 1 с, наступні 10 чекають близько 1 с і мають total близько 2 с.
+            Якщо n більше за пул у кілька разів, останні запити можуть не дочекатись і впасти по DB_ACQUIRE_TIMEOUT_MS.
+          </p>
+        </div>
         <div className="row">
           <label>
             seconds (1..10)

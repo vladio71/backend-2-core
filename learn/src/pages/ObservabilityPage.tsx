@@ -5,7 +5,7 @@ import { apiCall } from '../api/client';
 import { useBaseUrl } from '../api/baseUrl';
 import { useLatency } from '../hooks/useLatency';
 import { Panel } from '../components/Panel';
-import { Card, Explain, PageTitle } from '../components/common';
+import { Card, Explain, PageTitle, WhereInCode } from '../components/common';
 
 interface MetricLine {
   name: string;
@@ -114,10 +114,12 @@ export function ObservabilityPage() {
       <Explain>
         <p>
           <b>Три інструменти, три питання.</b> Логи відповідають "що сталося з одним конкретним запитом" (сторінка "Логи, request-id і health"). <b>Метрики</b>{' '}
-          відповідають "скільки, як швидко, скільки помилок за хвилину": не один запит, а всі разом одним числом. <b>Трейси</b> відповідають "де саме всередині
-          одного запиту витрачено час": SQL, Redis, очікування пулу, воркер. Порядок завжди той самий: дашборд (ЩО не так) -&gt; Jaeger (ДЕ всередині запиту)
-          -&gt; логи за requestId (ЧОМУ).
+          відповідають "скільки, як швидко, скільки помилок за хвилину": не один запит, а всі разом одним числом.
         </p>
+        <p>
+          <b>Трейси</b> відповідають "де саме всередині одного запиту витрачено час": SQL, Redis, очікування пулу, воркер.
+        </p>
+        <p>Порядок завжди той самий: дашборд (ЩО не так), потім Jaeger (ДЕ всередині запиту), потім логи за requestId (ЧОМУ).</p>
         <table className="tbl">
           <thead>
             <tr>
@@ -155,14 +157,21 @@ export function ObservabilityPage() {
             </tr>
           </tbody>
         </table>
-        <p className="muted small" style={{ marginTop: 8 }}>
-          Grafana, Prometheus і Loki є тільки з профілем observability: <code>npm run up -- --observability</code> або{' '}
-          <code>docker compose --profile observability up --build</code>. Jaeger піднімається у звичайному <code>docker compose up</code>; без Docker його
-          немає, і <code>src/tracing.ts</code> нічого не робить.
+        <p className="muted small">
+          Grafana, Prometheus і Loki є тільки з профілем observability: <code>npm run up -- --observability</code>. Jaeger піднімається у звичайному{' '}
+          <code>docker compose up</code>; без Docker його немає, і трейсинг нічого не робить.
         </p>
+        <WhereInCode paths={['src/modules/metrics/metrics.service.ts', 'metrics.middleware.ts', 'src/tracing.ts', 'logging/app-logger.ts']} />
       </Explain>
 
       <Card title="GET /metrics: живі числа з API">
+        <div className="prose">
+          <p>
+            Сирий текст у форматі Prometheus, з якого таблиця нижче витягує знайомі метрики. Які числа важливі: pg_pool_waiting має бути 0 (інакше пул замалий
+            або транзакції довгі), nodejs_eventloop_lag_seconds близько нуля, process_resident_memory_bytes не росте годинами.
+          </p>
+          <p>Лічильники самі по собі нічого не кажуть: http_requests_total цікавий швидкістю росту. Зроби кілька запитів на інших сторінках і натисни "Оновити".</p>
+        </div>
         <div className="row">
           <button type="button" className="primary" data-testid="metrics-load" disabled={latency.busy} onClick={() => void loadMetrics()}>
             {lines ? 'Оновити' : 'GET /metrics'}
@@ -212,7 +221,7 @@ export function ObservabilityPage() {
 
       <div className="card-grid">
         <Card title="Трейси: один запит через два процеси">
-          <pre className="mono" style={{ background: 'var(--bg-code)', padding: 10, borderRadius: 6 }}>{`POST /reports                       26 мс   (api-1)
+          <pre className="code">{`POST /reports                       26 мс   (api-1)
   evalsha                            4 мс   getWaitingCount у Redis
   pg.query:INSERT                    2 мс   рядок у reports
   reports.generate                1052 мс   (worker, інший процес, той самий traceId)
@@ -226,7 +235,7 @@ export function ObservabilityPage() {
         </Card>
 
         <Card title="Graceful shutdown: SIGTERM по кроках">
-          <pre className="mono" style={{ background: 'var(--bg-code)', padding: 10, borderRadius: 6 }}>
+          <pre className="code">
             {SHUTDOWN_DIAGRAM}
           </pre>
           <div className="muted small" style={{ marginTop: 8 }}>

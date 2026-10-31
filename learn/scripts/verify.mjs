@@ -258,6 +258,8 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('[data-testid="presence"] li').length >= 2, null, { timeout: 10000 });
   const presence = await page.$$eval('[data-testid="presence"] li', (els) => els.map((e) => e.textContent?.trim()));
   ok('live.presence', `онлайн: ${presence.join(', ')}`);
+  // Дошка може бути нижче в'юпорту (над нею текст), а миша клікає лише по видимому: спершу прокручуємо до неї.
+  await page.locator('[data-testid="board"]').scrollIntoViewIfNeeded();
   const box = await page.locator('[data-testid="board"]').boundingBox();
   await page.mouse.move(box.x + 50, box.y + 50);
   await page.mouse.down();

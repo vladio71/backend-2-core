@@ -4,7 +4,7 @@ import { apiCall, ApiExchange } from '../api/client';
 import { useAuth } from '../api/auth';
 import { useLatency } from '../hooks/useLatency';
 import { Panel } from '../components/Panel';
-import { Card, Explain, NeedAuth, PageTitle } from '../components/common';
+import { Card, Explain, NeedAuth, PageTitle, WhereInCode } from '../components/common';
 
 interface Balance {
   userId: string;
@@ -85,9 +85,11 @@ export function CreditsPage() {
       <PageTitle title="Кредити і локи" sub="SELECT ... FOR UPDATE: 20 паралельних списань без втрат" />
       <Explain>
         <p>
-          <b>Як це працює на бекенді.</b> <code>POST /credits/reserve</code> у транзакції бере рядок балансу з <code>SELECT ... FOR UPDATE</code> (у TypeORM{' '}
-          <code>lock: {'{ mode: "pessimistic_write" }'}</code>), перевіряє, списує і створює резервацію на 10 хв. Друга транзакція на тому самому рядку чекає
-          COMMIT першої і бачить уже оновлений баланс. <code>CHECK (balance &gt;= 0)</code> у БД: остання лінія оборони.
+          <b>Як це працює на бекенді.</b> Резервація у транзакції бере рядок балансу з <code>SELECT ... FOR UPDATE</code>, перевіряє, списує і створює
+          резервацію на 10 хв. Друга транзакція на тому самому рядку чекає COMMIT першої і бачить уже оновлений баланс.
+        </p>
+        <p>
+          Обмеження <code>CHECK (balance &gt;= 0)</code> у БД: остання лінія оборони, якщо лок десь забули.
         </p>
         <pre>{`Без локу (гонка):                          З SELECT ... FOR UPDATE:
 T1: SELECT balance -> 50                   T1: SELECT ... FOR UPDATE -> 50 (рядок заблоковано)
@@ -95,12 +97,20 @@ T2: SELECT balance -> 50                   T2: SELECT ... FOR UPDATE ...   (че
 T1: UPDATE balance = 40                    T1: UPDATE balance = 40; COMMIT
 T2: UPDATE balance = 40  <- загублено      T2: ... -> 40, 40 >= 10 ok; UPDATE balance = 30`}</pre>
         <p>
-          Лок живе до кінця транзакції, тому все між <code>SELECT FOR UPDATE</code> і <code>COMMIT</code> має бути коротким і без зовнішніх викликів. Порядок
-          локів скрізь один (спочатку резервація, потім баланс), інакше deadlock. Крон щохвилини повертає кредити з протермінованих резервацій.
+          Лок живе до кінця транзакції, тому все між SELECT FOR UPDATE і COMMIT має бути коротким і без зовнішніх викликів. Порядок локів скрізь один (спочатку
+          резервація, потім баланс), інакше deadlock.
         </p>
+        <p>Крон щохвилини повертає кредити з протермінованих резервацій.</p>
+        <WhereInCode paths={['src/modules/credits/credits.service.ts (lock: pessimistic_write)', 'credits.cron.ts', 'credit-balance.entity.ts (CHECK)']} />
       </Explain>
 
       <Card title="Баланс і поповнення">
+        <div className="prose">
+          <p>
+            Баланс користувача і поповнення. GET /credits/me показує поточний баланс; topup може робити тільки admin, тому звичайний користувач отримає тут 403,
+            і це правильна поведінка.
+          </p>
+        </div>
         <NeedAuth>Сід дає olena/taras/iryna по 100 кредитів; новий користувач без балансу отримає 404 на reserve, поки admin не зробить topup.</NeedAuth>
         <div className="row">
           <button type="button" onClick={() => void loadBalance()} disabled={!auth.tokens || latency.busy} data-testid="balance">
@@ -129,6 +139,14 @@ T2: UPDATE balance = 40  <- загублено      T2: ... -> 40, 40 >= 10 ok; 
       </Card>
 
       <Card title="20 паралельних reserve(10)">
+        <div className="prose">
+          <p>
+            Головна перевірка сторінки: гонка. Одночасно летять 20 резервацій по 10. Правильна відповідь: стільки 201, скільки десяток уміщається в баланс
+            (10 при балансі 100), решта 422 INSUFFICIENT_CREDITS, і баланс після цього рівно 0. Якби локу не було, частина транзакцій прочитала б однаковий
+            баланс: 201 було б більше, а баланс пішов би в мінус.
+          </p>
+          <p>Якщо баланс уже витрачений, спочатку topup від admin або почекай 10 хв: крон поверне кредити з протермінованих резервацій.</p>
+        </div>
         <div className="row">
           <button type="button" className="primary" onClick={() => void reserve20()} disabled={!auth.tokens || latency.busy} data-testid="reserve20">
             20 x POST /credits/reserve {'{ amount: 10 }'} одночасно

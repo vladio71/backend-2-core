@@ -4,7 +4,7 @@ import { apiCall, errorCode } from '../api/client';
 import { useAuth } from '../api/auth';
 import { useLatency } from '../hooks/useLatency';
 import { Panel } from '../components/Panel';
-import { Card, Explain, NeedAuth, PageTitle } from '../components/common';
+import { Card, Explain, NeedAuth, PageTitle, WhereInCode } from '../components/common';
 
 const PROMPT = `Ти модератор технічного блогу для розробників.
 Оціни пост і вирішиш: approve (публікувати) або reject (відхилити).
@@ -89,23 +89,33 @@ export function AiPage() {
       <PageTitle title="AI: LLM і вектори" sub="Структурований вихід LLM через zod і векторний пошук через pgvector" />
       <Explain>
         <p>
-          <b>Як це працює на бекенді.</b> <code>POST /posts/:id/moderate</code> відправляє LLM system prompt і текст поста, отримує текст і парсить його
-          zod-схемою <code>{'{ action: "approve" | "reject", reason: string }'}</code>. "JSON mode" гарантує валідний JSON, але не нашу схему: модель може
-          повернути <code>{'{"action": "yes"}'}</code>. Невалідна відповідь: одна повторна спроба з суворішим нагадуванням, потім{' '}
-          <code>502 LLM_BAD_OUTPUT</code>. Рішення пишеться у <code>posts.moderation_action</code>.
+          <b>Як це працює на бекенді.</b> Модерація відправляє LLM system prompt і текст поста, отримує текст і парсить його zod-схемою{' '}
+          <code>{'{ action: "approve" | "reject", reason: string }'}</code>.
         </p>
         <p>
-          Провайдер це порт з двома адаптерами: <code>OpenAiLlmProvider</code> коли є <code>OPENAI_API_KEY</code>, інакше <code>FakeLlmProvider</code>{' '}
-          (детермінований: слова "spam", "casino", "buy now" дають reject). Тести і локальний запуск не ходять у мережу.
+          "JSON mode" гарантує валідний JSON, але не нашу схему: модель може повернути <code>{'{"action": "yes"}'}</code>. Невалідна відповідь: одна повторна
+          спроба з суворішим нагадуванням, потім <code>502 LLM_BAD_OUTPUT</code>. Рішення пишеться у колонку moderation_action поста.
         </p>
         <p>
-          <b>Вектори.</b> Колонка <code>posts.embedding vector(384)</code>. При створенні або зміні поста рахується вектор; пошук це{' '}
+          Провайдер це порт з двома адаптерами: справжній OpenAI, коли є OPENAI_API_KEY, інакше фейковий (детермінований: слова "spam", "casino", "buy now"
+          дають reject). Тести і локальний запуск не ходять у мережу.
+        </p>
+        <p>
+          <b>Вектори.</b> Колонка embedding типу vector(384). При створенні або зміні поста рахується вектор; пошук це{' '}
           <code>ORDER BY embedding &lt;-&gt; $1::vector LIMIT 5</code> (евклідова відстань, менше = схожіше). Без розширення pgvector сервіс каже{' '}
           <code>422 PGVECTOR_UNAVAILABLE</code>.
         </p>
+        <WhereInCode paths={['src/modules/ai/moderation.service.ts', 'llm.provider.ts, openai-llm.provider.ts, fake-llm.provider.ts', 'post-embeddings.service.ts']} />
       </Explain>
 
       <Card title="Модерація">
+        <div className="prose">
+          <p>
+            Модель читає пост і повертає рішення. Дивись на три поля: action (approve або reject), reason (чому) і attempts: 1 означає, що відповідь пройшла
+            zod-схему з першого разу, 2 що довелось перепитати. Без OPENAI_API_KEY працює фейковий провайдер: звичайний пост дає approve, а кнопка зі спамом
+            створює пост зі словом "casino" і має дати reject.
+          </p>
+        </div>
         <NeedAuth />
         <div className="row">
           <label>
@@ -156,7 +166,7 @@ export function AiPage() {
           </div>
         )}
         <h3>system prompt (з llm.provider.ts)</h3>
-        <pre className="mono" style={{ background: 'var(--bg-code)', padding: 10, borderRadius: 6 }}>
+        <pre className="code">
           {PROMPT}
         </pre>
         <div className="muted small">Користувацьке повідомлення: "Заголовок: ...\n\nТекст: ..." (обрізано до 4000 символів).</div>
@@ -164,6 +174,13 @@ export function AiPage() {
       </Card>
 
       <Card title="Схожі пости (pgvector)">
+        <div className="prose">
+          <p>
+            Пошук за змістом, а не за словами: запит перетворюється на вектор і порівнюється з векторами постів. У результаті distance менше означає схожіше;
+            добре, коли перший пост справді про те, що ти написав. 422 PGVECTOR_UNAVAILABLE означає, що в Postgres немає розширення, і це чесна відповідь, а не
+            баг.
+          </p>
+        </div>
         <div className="note">Потрібне розширення pgvector у Postgres (образ pgvector/pgvector:pg16 у docker compose). Без нього API чесно відповідає 422.</div>
         <div className="row">
           <label>

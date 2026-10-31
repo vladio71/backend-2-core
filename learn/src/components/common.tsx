@@ -16,6 +16,42 @@ export function Explain({ children }: { children: ReactNode }) {
   return <section className="explain">{children}</section>;
 }
 
+// Рядок "Де в коді" наприкінці пояснення: шляхи і назви класів винесені з речень сюди, щоб текст читався без коду в кожному рядку.
+// Елемент "шлях (примітка)": шлях іде у <code>, примітка у дужках звичайним текстом.
+export function WhereInCode({ paths }: { paths: string[] }) {
+  return (
+    <p className="where">
+      <span className="where-label">Де в коді:</span>{' '}
+      {paths.map((item, index) => {
+        const noteStart = item.indexOf(' (');
+        const path = noteStart === -1 ? item : item.slice(0, noteStart);
+        const note = noteStart === -1 ? '' : item.slice(noteStart);
+        return (
+          <span key={item}>
+            {index > 0 && ', '}
+            <code>{path}</code>
+            {note}
+          </span>
+        );
+      })}
+    </p>
+  );
+}
+
+// "Спробуй сам": короткий список кроків з підписом замість приглушеного речення.
+export function TrySelf({ items }: { items: ReactNode[] }) {
+  return (
+    <div className="try">
+      <span className="try-label">Спробуй сам</span>
+      <ul>
+        {items.map((item, index) => (
+          <li key={index}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function Card({ title, children, testId }: { title?: string; children: ReactNode; testId?: string }) {
   return (
     <section className="card" data-testid={testId}>
@@ -82,6 +118,73 @@ export function BarChart({ items, height = 160, valueLabel }: { items: BarItem[]
         );
       })}
     </svg>
+  );
+}
+
+export interface LinePoint {
+  label: string;
+  value: number;
+}
+
+export interface LineSeries {
+  name: string;
+  color: string;
+  points: LinePoint[];
+}
+
+// Кілька ліній на одному SVG (наприклад, накопичений підсумок по кожному автору). Усі серії мають однакові x (labels).
+export function LineChart({ series, height = 170 }: { series: LineSeries[]; height?: number }) {
+  const width = 640;
+  const padLeft = 36;
+  const padRight = 12;
+  const padBottom = 28;
+  const padTop = 14;
+  const labels = series[0]?.points.map((p) => p.label) ?? [];
+  const max = Math.max(1, ...series.flatMap((s) => s.points.map((p) => p.value)));
+  const innerW = width - padLeft - padRight;
+  const innerH = height - padBottom - padTop;
+  const stepX = labels.length > 1 ? innerW / (labels.length - 1) : innerW;
+  const x = (i: number) => padLeft + i * stepX;
+  const y = (v: number) => padTop + innerH - (v / max) * innerH;
+  const labelEvery = Math.ceil(labels.length / 10);
+  return (
+    <div>
+      <svg className="chart" viewBox={`0 0 ${width} ${height}`} role="img">
+        <line className="axis" x1={padLeft} y1={padTop + innerH} x2={width - padRight} y2={padTop + innerH} />
+        <line className="axis" x1={padLeft} y1={padTop} x2={padLeft} y2={padTop + innerH} />
+        <text x={2} y={padTop + 4}>
+          {max}
+        </text>
+        <text x={2} y={padTop + innerH}>
+          0
+        </text>
+        {labels.map((label, i) =>
+          i % labelEvery === 0 ? (
+            <text key={label} x={x(i)} y={height - 10} textAnchor="middle">
+              {label}
+            </text>
+          ) : null,
+        )}
+        {series.map((s) => (
+          <g key={s.name}>
+            <title>{s.name}</title>
+            <polyline fill="none" stroke={s.color} strokeWidth={2} points={s.points.map((p, i) => `${x(i)},${y(p.value)}`).join(' ')} />
+            {s.points.map((p, i) => (
+              <circle key={`${s.name}-${i}`} cx={x(i)} cy={y(p.value)} r={2.5} fill={s.color}>
+                <title>{`${s.name}, ${p.label}: ${p.value}`}</title>
+              </circle>
+            ))}
+          </g>
+        ))}
+      </svg>
+      <div className="chart-legend">
+        {series.map((s) => (
+          <span key={s.name}>
+            <i style={{ background: s.color }} /> {s.name}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 

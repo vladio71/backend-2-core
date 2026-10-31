@@ -1,6 +1,6 @@
 // Деплой: статична сторінка за docs/deploy.md і .github/workflows/deploy.yml. Кроки CI на сторінці "Тести і CI".
 import { Link } from 'react-router-dom';
-import { Card, Explain, PageTitle } from '../components/common';
+import { Card, Explain, PageTitle, WhereInCode } from '../components/common';
 
 const VPS_STEPS: Array<[string, string]> = [
   ['Сервер', 'Ubuntu 22.04 або 24.04, 2 GB RAM мінімум (Postgres + Redis + 2 API + worker + nginx)'],
@@ -22,13 +22,16 @@ export function DeployPage() {
       <PageTitle title="Деплой" sub="Після зеленого CI на main: ssh на сервер, git pull і docker compose up -d --build" />
       <Explain>
         <p>
-          <b>Як це працює.</b> Два workflow. <code>ci.yml</code> запускається на кожен push і PR: піднімає Postgres і Redis як сервіси job-а і проганяє усі три
-          рівні тестів. <code>deploy.yml</code> запускається тільки після успішного CI на <code>main</code>: заходить на сервер по ssh, робить{' '}
-          <code>git pull --ff-only</code> і <code>docker compose up -d --build --remove-orphans</code>. Compose піднімає postgres (pgvector), redis, migrate
-          (міграції + сід), api-1, api-2, worker, nginx (round robin на обидва API).
+          <b>Як це працює.</b> Два workflow. CI запускається на кожен push і PR: піднімає Postgres і Redis як сервіси job-а і проганяє усі три рівні тестів.
+        </p>
+        <p>
+          Деплой запускається тільки після успішного CI на main: заходить на сервер по ssh, робить <code>git pull --ff-only</code> і{' '}
+          <code>docker compose up -d --build</code>. Compose піднімає postgres (pgvector), redis, migrate (міграції + сід), api-1, api-2, worker і nginx (round
+          robin на обидва API).
         </p>
         <pre>{`push / PR  ->  CI (ci.yml)                          ->  Deploy (deploy.yml, тільки main, тільки якщо CI зелений)
                npm ci, lint, build, unit, int, e2e        ssh deploy@server: git pull, docker compose up -d --build`}</pre>
+        <WhereInCode paths={['.github/workflows/ci.yml', '.github/workflows/deploy.yml', 'docker-compose.yml', 'nginx/']} />
       </Explain>
 
       <div className="card-grid">
@@ -64,7 +67,7 @@ export function DeployPage() {
           <li>Security group: 22 тільки з твого IP, 80 і 443 звідусіль, 5432 і 6379 НЕ відкривати. Elastic IP, щоб адреса не мінялась після перезапуску.</li>
           <li>Далі ті самі кроки, що для VPS; SSH_USER = ubuntu, SSH_KEY = вміст .pem. Billing, Budgets: alert на 1 USD.</li>
         </ul>
-        <pre className="mono" style={{ background: 'var(--bg-code)', padding: 10, borderRadius: 6 }}>{`curl https://your-domain/health
+        <pre className="code">{`curl https://your-domain/health
 open https://your-domain/reference
 open https://your-domain/demo/live   (3 вкладки)
 docker compose logs -f api-1 worker  (один requestId видно одразу в обох)`}</pre>

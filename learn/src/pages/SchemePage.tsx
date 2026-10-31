@@ -1,7 +1,7 @@
 // Схема проєкту: docs/architecture.excalidraw, показана через Excalidraw у режимі перегляду.
 // Файл копіюється у public/ скриптом prebuild (package.json), тому джерело одне: docs/.
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Card, Explain, PageTitle } from '../components/common';
+import { PageTitle } from '../components/common';
 
 const SchemeCanvas = lazy(() => import('../components/SchemeCanvas'));
 
@@ -34,39 +34,38 @@ export function SchemePage() {
 
   return (
     <>
-      <PageTitle title="Схема проєкту" sub="З чого складається devhub і як частини зв'язані: один малюнок перед усіма темами" />
-      <Explain>
+      <PageTitle title="Схема проєкту" sub="Один малюнок перед усіма темами. Колесо: зум, перетягування: пан. Кожен блок має свою сторінку в меню зліва." />
+
+      <div className="scheme-canvas scheme-canvas-full" data-testid="scheme-canvas">
+        {state.status === 'loading' && <div className="muted small scheme-placeholder">завантажую схему...</div>}
+        {state.status === 'error' && (
+          <div className="note err scheme-placeholder" data-testid="scheme-error">
+            Не вдалося завантажити /architecture.excalidraw: {state.message}. Запусти <code>npm run build</code> або <code>npm run dev</code> ще раз: скрипт
+            prebuild копіює файл з <code>docs/</code> у <code>public/</code>.
+          </div>
+        )}
+        {state.status === 'ready' && (
+          <Suspense fallback={<div className="muted small scheme-placeholder">завантажую Excalidraw...</div>}>
+            <SchemeCanvas elements={state.scene.elements} viewBackgroundColor={state.scene.appState?.viewBackgroundColor} />
+          </Suspense>
+        )}
+      </div>
+
+      <details className="scheme-details">
+        <summary>Як читати схему і де лежить файл</summary>
         <p>
           Браузер (цей фронтенд) ходить у nginx, nginx по черзі віддає запити двом інстансам API, API пише у PostgreSQL і Redis, довгі задачі кладе у чергу, а
-          окремий процес воркера їх виконує. Кожен блок на схемі має свою сторінку в меню зліва; порядок тем іде від того, без чого запит не обробиться взагалі
-          (конфіг, помилки, база), до того, що потрібно під навантаженням (кеш, локи, черга, метрики).
+          окремий процес воркера їх виконує. Порядок тем у меню іде від того, без чого запит не обробиться взагалі (конфіг, помилки, база), до того, що потрібно
+          під навантаженням (кеш, локи, черга, метрики).
         </p>
-        <p className="muted small">Колесо миші або два пальці: зум. Перетягування: панорамування. Редагувати тут не можна.</p>
-      </Explain>
-
-      <Card>
-        <div className="scheme-canvas" data-testid="scheme-canvas">
-          {state.status === 'loading' && <div className="muted small scheme-placeholder">завантажую схему...</div>}
-          {state.status === 'error' && (
-            <div className="note err scheme-placeholder" data-testid="scheme-error">
-              Не вдалося завантажити /architecture.excalidraw: {state.message}. Запусти <code>npm run build</code> або <code>npm run dev</code> ще раз: скрипт
-              prebuild копіює файл з <code>docs/</code> у <code>public/</code>.
-            </div>
-          )}
-          {state.status === 'ready' && (
-            <Suspense fallback={<div className="muted small scheme-placeholder">завантажую Excalidraw...</div>}>
-              <SchemeCanvas elements={state.scene.elements} viewBackgroundColor={state.scene.appState?.viewBackgroundColor} />
-            </Suspense>
-          )}
-        </div>
-        <div className="muted small" style={{ marginTop: 10 }}>
+        <p className="muted small">
           Той самий файл лежить у <code>docs/architecture.excalidraw</code>, відкрити для редагування можна на{' '}
           <a href="https://excalidraw.com" target="_blank" rel="noreferrer">
             excalidraw.com
           </a>
           .
-        </div>
-      </Card>
+        </p>
+      </details>
     </>
   );
 }

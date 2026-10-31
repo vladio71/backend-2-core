@@ -4,7 +4,7 @@ import { apiCall, ApiExchange } from '../api/client';
 import { useAuth } from '../api/auth';
 import { useLatency } from '../hooks/useLatency';
 import { Panel } from '../components/Panel';
-import { Card, Explain, NeedAuth, PageTitle } from '../components/common';
+import { Card, Explain, NeedAuth, PageTitle, WhereInCode } from '../components/common';
 
 interface PostRow {
   id: string;
@@ -52,9 +52,11 @@ export function CachePage() {
       <PageTitle title="Кеш" sub="GET /posts/:id/stats у Redis на 60 с, інвалідація при записі" />
       <Explain>
         <p>
-          <b>Як це працює на бекенді.</b> Агрегат по кількох таблицях дорогий (у коді ще є <code>pg_sleep(0.2)</code>, щоб це було видно). Результат кладеться у
-          Redis з <code>EX 60</code>; заголовок <code>X-Cache: HIT|MISS</code> каже, звідки прийшла відповідь. <code>PATCH</code>, <code>DELETE</code> і{' '}
-          <code>publish</code> цього поста роблять <code>DEL post:stats:&lt;id&gt;</code>, тому наступний GET знову MISS.
+          <b>Як це працює на бекенді.</b> Агрегат по кількох таблицях дорогий (у коді ще є pg_sleep на 0.2 с, щоб це було видно). Результат кладеться у Redis
+          на 60 секунд, а заголовок <code>X-Cache: HIT|MISS</code> каже, звідки прийшла відповідь.
+        </p>
+        <p>
+          PATCH, DELETE і publish цього поста видаляють ключ <code>post:stats:&lt;id&gt;</code>, тому наступний GET знову MISS.
         </p>
         <table className="tbl">
           <thead>
@@ -86,9 +88,17 @@ export function CachePage() {
             </tr>
           </tbody>
         </table>
+        <WhereInCode paths={['src/modules/posts/post-stats-cache.service.ts', 'stats.controller.ts']} />
       </Explain>
 
       <Card title="Спробувати">
+        <div className="prose">
+          <p>
+            Перевіряємо кеш і його інвалідацію. Натисни GET двічі: перший раз X-Cache: MISS і довго (агрегат рахується в базі, плюс 200 мс затримки), другий раз
+            HIT і одиниці мілісекунд, бо відповідь узято з Redis. Потім PATCH: він видаляє ключ, тому наступний GET знову MISS, але вже з новим likes.
+          </p>
+          <p>Погано, якби після PATCH прийшов HIT зі старими даними: це і є "застарілий кеш".</p>
+        </div>
         <NeedAuth>GET /stats працює без токена, але PATCH (інвалідація) потребує автора або admin.</NeedAuth>
         <div className="row">
           <label>

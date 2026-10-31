@@ -1,13 +1,21 @@
+/* Стилі навчального фронтенду. Дві теми за prefers-color-scheme, усі кольори через змінні.
+   Принцип: пояснення читаються як документація (вузька колонка, спокійна типографіка),
+   живі блоки (запити, таблиці, полотна) можуть займати всю ширину. */
+
 :root {
-  --bg: #f6f7f9;
+  --bg: #ffffff;
   --bg-panel: #ffffff;
-  --bg-code: #f0f2f5;
-  --bg-sidebar: #eef0f4;
-  --bg-hover: #e4e7ec;
-  --text: #1a1d23;
-  --text-muted: #5b6270;
-  --border: #d9dde3;
+  --bg-code: #f4f5f7;
+  --bg-inline: rgba(27, 31, 36, 0.06);
+  --bg-sidebar: #f7f8fa;
+  --bg-hover: rgba(27, 31, 36, 0.05);
+  --text: #1f2328;
+  --text-code: #1f2328;
+  --text-muted: #656d76;
+  --border: rgba(27, 31, 36, 0.12);
+  --border-strong: #d0d7de;
   --accent: #2a62d9;
+  --accent-soft: rgba(42, 98, 217, 0.12);
   --accent-text: #ffffff;
   --ok: #1f8a4c;
   --warn: #b86e00;
@@ -16,23 +24,29 @@
   --bar-wait: #c7cbd3;
   --bar-work: #4d7ee8;
   --bar-alt: #e8a04d;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --mono: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --radius: 8px;
+  --mono: 'JetBrains Mono', 'Fira Code', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  --sans: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --radius: 10px;
+  --radius-card: 12px;
+  --measure: 700px;
+  --block-gap: 28px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #14161a;
-    --bg-panel: #1c1f25;
-    --bg-code: #0f1115;
-    --bg-sidebar: #181b20;
-    --bg-hover: #262a32;
-    --text: #e6e8ec;
-    --text-muted: #9aa2b1;
-    --border: #2d323b;
-    --accent: #6a93ff;
+    --bg: #0f1115;
+    --bg-panel: #0f1115;
+    --bg-code: #161920;
+    --bg-inline: rgba(255, 255, 255, 0.07);
+    --bg-sidebar: #0c0e12;
+    --bg-hover: rgba(255, 255, 255, 0.05);
+    --text: #dde1e7;
+    --text-code: #c9ced6;
+    --text-muted: #9099a8;
+    --border: rgba(255, 255, 255, 0.12);
+    --border-strong: #2d323b;
+    --accent: #7aa2ff;
+    --accent-soft: rgba(122, 162, 255, 0.15);
     --accent-text: #0f1115;
     --ok: #4cc27a;
     --warn: #e5a53a;
@@ -41,7 +55,6 @@
     --bar-wait: #3a3f49;
     --bar-work: #6a93ff;
     --bar-alt: #e5a53a;
-    --shadow: none;
   }
 }
 
@@ -56,47 +69,134 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 a {
   color: var(--accent);
+  text-decoration: none;
 }
+
+a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- Код ---------- */
 
 code,
 pre,
 .mono {
   font-family: var(--mono);
-  font-size: 13px;
+}
+
+/* Inline-код: трохи менший за текст і не важчий за нього. */
+code {
+  font-size: 0.9em;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--bg-inline);
+  color: var(--text-code);
+  font-weight: 400;
+  overflow-wrap: anywhere;
 }
 
 pre {
   margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
+  color: var(--text-code);
 }
 
+/* Блок коду сам по собі: одна рамка, без другої темнішої коробки. */
+pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+
+.explain pre,
+pre.code {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin: 12px 0 16px;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* У поясненні блок коду не вужчий за колонку тексту, але ASCII-схема може бути ширшою за неї (до ширини контенту). */
+.explain pre {
+  width: fit-content;
+  min-width: min(100%, var(--measure));
+}
+
+pre.code {
+  margin: 0 0 12px;
+}
+
+pre.code:last-child {
+  margin-bottom: 0;
+}
+
+/* ---------- Заголовки і текст ---------- */
+
 h1 {
-  font-size: 24px;
-  margin: 0 0 4px;
+  font-size: 28px;
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.6em;
 }
 
 h2 {
-  font-size: 17px;
-  margin: 0 0 8px;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 1.6em 0 0.6em;
 }
 
 h3 {
-  font-size: 14px;
+  font-size: 12px;
   margin: 0 0 6px;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+  font-weight: 600;
 }
 
 p {
-  margin: 0 0 10px;
+  margin: 0 0 0.9em;
+}
+
+p:last-child {
+  margin-bottom: 0;
+}
+
+b,
+strong {
+  font-weight: 600;
+}
+
+ul,
+ol {
+  margin: 0 0 0.9em;
+  padding-left: 22px;
+}
+
+li {
+  margin-bottom: 4px;
+}
+
+li::marker {
+  color: var(--text-muted);
 }
 
 /* ---------- Каркас ---------- */
@@ -113,19 +213,25 @@ p {
   display: flex;
   align-items: center;
   gap: 16px;
+  height: 56px;
   padding: 0 20px;
   border-bottom: 1px solid var(--border);
-  background: var(--bg-panel);
+  background: var(--bg);
   position: sticky;
   top: 0;
   z-index: 10;
 }
 
 .header .brand {
-  font-weight: 700;
-  font-size: 17px;
+  font-weight: 650;
+  font-size: 16px;
+  letter-spacing: -0.01em;
   text-decoration: none;
   color: var(--text);
+}
+
+.header .brand:hover {
+  text-decoration: none;
 }
 
 .header .spacer {
@@ -139,13 +245,14 @@ p {
 }
 
 .header .base-url input {
-  width: 260px;
+  width: 240px;
+  font-size: 13px;
 }
 
 .status-dot {
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: var(--text-muted);
 }
@@ -165,7 +272,7 @@ p {
 .sidebar {
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
-  padding: 16px 12px;
+  padding: 14px 12px;
   position: sticky;
   top: 56px;
   height: calc(100vh - 56px);
@@ -174,85 +281,162 @@ p {
 
 .sidebar a {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: baseline;
-  padding: 7px 10px;
-  border-radius: var(--radius);
+  padding: 10px 12px;
+  border-radius: 8px;
   color: var(--text);
   text-decoration: none;
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1.35;
 }
 
 .sidebar a:hover {
   background: var(--bg-hover);
+  text-decoration: none;
 }
 
 .sidebar a.active {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 500;
 }
 
 .sidebar a .num {
   font-family: var(--mono);
   font-size: 12px;
-  opacity: 0.7;
-  min-width: 18px;
+  color: var(--text-muted);
+  min-width: 20px;
+}
+
+.sidebar a.active .num {
+  color: var(--accent);
+  opacity: 0.8;
 }
 
 .content {
-  padding: 24px 28px 60px;
-  max-width: 1200px;
+  padding: 36px 40px 72px;
+  max-width: 1100px;
   width: 100%;
+  min-width: 0;
+}
+
+/* ---------- Колонка читання ---------- */
+
+/* Пояснювальний текст обмежений шириною, зручною для читання. Живі блоки (.card), таблиці і схеми лишаються широкими. */
+.page-sub,
+.prose,
+.explain > p,
+.explain > ul,
+.explain > ol,
+.explain > .note,
+.explain > .where,
+.explain > .try {
+  max-width: var(--measure);
+  text-align: left;
 }
 
 .page-sub {
   color: var(--text-muted);
-  margin-bottom: 18px;
+  font-size: 15px;
+  line-height: 1.55;
+  margin: -0.3em 0 32px;
 }
 
 /* ---------- Блоки ---------- */
 
+/* Пояснення: звичайна проза з тонким акцентом зліва, без коробки. */
 .explain {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
-  border-radius: var(--radius);
-  padding: 14px 18px;
-  margin-bottom: 20px;
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  margin-bottom: var(--block-gap);
+}
+
+.explain > :first-child {
+  margin-top: 0;
+}
+
+.explain > :last-child {
+  margin-bottom: 0;
 }
 
 .explain ul,
 .explain ol {
-  margin: 4px 0 8px;
-  padding-left: 22px;
+  margin: 0.2em 0 0.9em;
 }
 
 .explain li {
+  margin-bottom: 6px;
+}
+
+/* Таблиці всередині пояснення: хай виходять за колонку тексту, якщо треба. */
+.explain table.tbl {
+  margin: 12px 0 16px;
+  font-size: 14px;
+}
+
+/* "Де в коді": один рядок з шляхами, маленький і приглушений. */
+.where {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  margin: 0.4em 0 0;
+  line-height: 1.6;
+}
+
+.where .where-label {
+  font-weight: 500;
+}
+
+.where code {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  background: var(--bg-inline);
+}
+
+/* "Спробуй сам": підпис і короткий список. */
+.try {
+  margin: 0.9em 0 0;
+  font-size: 14.5px;
+}
+
+.try .try-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.try ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.try li {
   margin-bottom: 3px;
 }
 
-.explain pre {
-  background: var(--bg-code);
-  padding: 10px 12px;
-  border-radius: 6px;
-  margin: 6px 0 10px;
-  overflow-x: auto;
-}
-
+/* Картка живого блоку: легка рамка, без тіні. */
 .card {
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 18px;
-  margin-bottom: 20px;
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  margin-bottom: var(--block-gap);
+}
+
+.card > h2:first-child {
+  margin-top: 0;
+  margin-bottom: 14px;
 }
 
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: var(--block-gap);
 }
 
 .card-grid .card {
@@ -285,8 +469,9 @@ input,
 select,
 textarea {
   font: inherit;
+  font-size: 14px;
   padding: 6px 9px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   background: var(--bg);
   color: var(--text);
@@ -307,11 +492,12 @@ button {
   font: inherit;
   font-size: 14px;
   padding: 7px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
+  border-radius: 7px;
+  border: 1px solid var(--border-strong);
   background: var(--bg-panel);
   color: var(--text);
   cursor: pointer;
+  line-height: 1.4;
 }
 
 button:hover:not(:disabled) {
@@ -344,15 +530,16 @@ button:disabled {
 }
 
 .small {
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .note {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-muted);
   border-left: 3px solid var(--warn);
-  padding-left: 10px;
-  margin: 8px 0;
+  padding-left: 12px;
+  margin: 10px 0;
+  max-width: var(--measure);
 }
 
 .note.ok {
@@ -370,25 +557,27 @@ button:disabled {
   display: grid;
   grid-template-columns: 1fr 1fr 120px;
   gap: 12px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 .panel-box {
   background: var(--bg-code);
-  border-radius: 6px;
-  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
   min-height: 90px;
   min-width: 0;
   overflow: hidden;
 }
 
 .panel-box h3 {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .panel-box pre {
   max-height: 320px;
   overflow: auto;
+  font-size: 13px;
 }
 
 .panel-line {
@@ -403,6 +592,7 @@ button:disabled {
   font-size: 12px;
   color: var(--text-muted);
   margin: 4px 0 6px;
+  line-height: 1.6;
 }
 
 .panel-headers span {
@@ -437,6 +627,7 @@ button:disabled {
   border-radius: 999px;
   color: #fff;
   background: var(--text-muted);
+  line-height: 1.5;
 }
 
 .badge.s2 {
@@ -477,13 +668,14 @@ button:disabled {
 table.tbl {
   border-collapse: collapse;
   width: 100%;
-  font-size: 13.5px;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 table.tbl th,
 table.tbl td {
   text-align: left;
-  padding: 6px 8px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
@@ -493,7 +685,7 @@ table.tbl th {
   font-weight: 600;
   font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
 }
 
 table.tbl td.mono {
@@ -515,8 +707,47 @@ table.tbl td.mono {
 }
 
 .chart .axis {
-  stroke: var(--border);
+  stroke: var(--border-strong);
   stroke-width: 1;
+}
+
+.chart-title {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 10px 0 4px;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.chart-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  vertical-align: -1px;
+  margin-right: 4px;
+}
+
+/* Вступ до живого блоку: що перевіряємо, на що дивитись, що "добре" і що "погано". Той самий стовпчик, що й пояснення. */
+.card > .prose {
+  margin-bottom: 16px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.card > .prose p {
+  margin-bottom: 0.7em;
+}
+
+.card > .prose p:last-child {
+  margin-bottom: 0;
 }
 
 .timeline-row {
@@ -582,8 +813,9 @@ table.tbl td.mono {
 
 .col {
   background: var(--bg-code);
-  border-radius: 6px;
-  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
 }
 
 .col h3 {
@@ -639,7 +871,7 @@ table.tbl td.mono {
   width: 22px;
   height: 30px;
   border-radius: 4px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: var(--bg-code);
 }
 
@@ -652,9 +884,9 @@ canvas.board {
   width: 100%;
   max-width: 700px;
   aspect-ratio: 7 / 4;
-  background: var(--bg-panel);
+  background: var(--bg-code);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   cursor: crosshair;
   touch-action: none;
 }
@@ -663,7 +895,7 @@ canvas.board {
   display: inline-block;
   padding: 2px 10px;
   border-radius: 999px;
-  background: var(--bg-code);
+  background: var(--bg-inline);
   font-size: 13px;
   margin: 2px 4px 2px 0;
 }
@@ -675,10 +907,11 @@ canvas.board {
 }
 
 .checklist li {
-  padding: 6px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--border);
   display: flex;
   gap: 10px;
+  margin: 0;
 }
 
 .checklist li::before {
@@ -698,6 +931,10 @@ canvas.board {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
+  }
+
+  .content {
+    padding: 24px 16px 56px;
   }
 
   .panel {
@@ -720,8 +957,8 @@ canvas.board {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 12px;
-  margin-top: 28px;
-  padding-top: 14px;
+  margin-top: 40px;
+  padding-top: 20px;
   border-top: 1px solid var(--border);
 }
 
@@ -729,7 +966,7 @@ canvas.board {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-panel);
@@ -737,10 +974,12 @@ canvas.board {
   color: var(--text);
   width: fit-content;
   max-width: 100%;
+  font-size: 15px;
 }
 
 .page-nav-link:hover {
   background: var(--bg-hover);
+  text-decoration: none;
 }
 
 .page-nav-next {
@@ -759,9 +998,44 @@ canvas.board {
   height: calc(100vh - 180px);
   min-height: 480px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-card);
   overflow: hidden;
   background: var(--bg-panel);
+}
+
+/* Перша сторінка: полотно до низу в'юпорту під заголовком (шапка 56 + відступи + заголовок з підзаголовком ~ 218px + 24px знизу). */
+.scheme-canvas-full {
+  height: calc(100vh - 242px);
+  min-height: 560px;
+}
+
+/* У режимі перегляду інтерфейс Excalidraw не потрібен: ховаємо меню зверху зліва, кнопку "Help" і "вийти з zen"
+   внизу справа. Лишається саме полотно: колесо зумить, перетягування панорамує. */
+.scheme-canvas .excalidraw .App-menu_top .dropdown-menu-button,
+.scheme-canvas .excalidraw .App-menu_top .main-menu-trigger,
+.scheme-canvas .excalidraw .layer-ui__wrapper__top-right,
+.scheme-canvas .excalidraw .layer-ui__wrapper__footer-left,
+.scheme-canvas .excalidraw .layer-ui__wrapper__footer-right,
+.scheme-canvas .excalidraw .help-icon,
+.scheme-canvas .excalidraw .disable-zen-mode,
+.scheme-canvas .excalidraw .App-toolbar-content,
+.scheme-canvas .excalidraw .welcome-screen-center {
+  display: none !important;
+}
+
+.scheme-details {
+  margin-top: 14px;
+  max-width: var(--measure);
+}
+
+.scheme-details summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14.5px;
+}
+
+.scheme-details p {
+  margin: 10px 0 0;
 }
 
 .scheme-placeholder {
@@ -782,7 +1056,7 @@ canvas.board {
   grid-template-columns: 26px 1fr auto;
   gap: 10px;
   align-items: baseline;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .step .step-num {

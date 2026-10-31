@@ -1,6 +1,6 @@
 // Тести і CI: статична сторінка за docs/testing.md і .github/workflows/ci.yml. Три рівні тестів з прикладом на кожен,
 // кроки CI і завдання "напиши сам" з test/e2e/your-turn.e2e-spec.ts.
-import { Card, Explain, PageTitle } from '../components/common';
+import { Card, Explain, PageTitle, WhereInCode } from '../components/common';
 
 const LEVELS: Array<[string, string, string, string, string]> = [
   ['Unit (src/**/*.spec.ts)', 'логіку одного класу', 'репозиторії, Redis, LLM фейками', 'мс', 'npm test'],
@@ -71,8 +71,11 @@ export function TestsPage() {
       <Explain>
         <p>
           <b>Три рівні.</b> Що вище рівень, то більше він ловить і то повільніший. Unit-тести тримають логіку класу (права, арифметика відра, retry LLM) без
-          мережі і без бази: якщо unit-тест вимагає Postgres, це вже не unit. Інтеграційні перевіряють те, що фейком не перевіриш: SQL, план запиту, міграції,
-          тип колонки. e2e піднімають увесь застосунок з тими самими пайпами і фільтром, що у <code>main.ts</code>, і ходять у нього як клієнт.
+          мережі і без бази: якщо unit-тест вимагає Postgres, це вже не unit.
+        </p>
+        <p>
+          Інтеграційні перевіряють те, що фейком не перевіриш: SQL, план запиту, міграції, тип колонки. e2e піднімають увесь застосунок з тими самими пайпами і
+          фільтром, що у production, і ходять у нього як клієнт.
         </p>
         <table className="tbl">
           <thead>
@@ -96,15 +99,22 @@ export function TestsPage() {
             ))}
           </tbody>
         </table>
+        <WhereInCode paths={['src/**/*.spec.ts (unit)', 'test/int/', 'test/e2e/', 'test/helpers/app.ts (той самий setupApp, що у main.ts)']} />
       </Explain>
 
       <Card title="Unit: фейки замість репозиторію">
-        <pre className="mono" style={{ background: 'var(--bg-code)', padding: 10, borderRadius: 6 }}>
+        <div className="prose">
+          <p>Сервіс отримує фейковий репозиторій замість справжнього: тест перевіряє рішення класу (кому можна, кому 403), а не SQL. Без бази він іде мілісекунди.</p>
+        </div>
+        <pre className="code">
           {UNIT_SNIPPET}
         </pre>
       </Card>
       <Card title="Integration: справжній Postgres, без Nest">
-        <pre className="mono" style={{ background: 'var(--bg-code)', padding: 10, borderRadius: 6 }}>
+        <div className="prose">
+          <p>Тут навпаки: справжня база, бо перевіряємо те, що знає тільки вона: план запиту, тип колонки, поведінку індексу після міграції.</p>
+        </div>
+        <pre className="code">
           {INT_SNIPPET}
         </pre>
         <div className="muted small" style={{ marginTop: 8 }}>
@@ -113,7 +123,10 @@ export function TestsPage() {
         </div>
       </Card>
       <Card title="e2e: увесь застосунок через HTTP">
-        <pre className="mono" style={{ background: 'var(--bg-code)', padding: 10, borderRadius: 6 }}>
+        <div className="prose">
+          <p>Застосунок піднімається цілком, тест ходить у нього HTTP-запитами як клієнт. Ловить те, що між шарами: пайпи, фільтр помилок, guard-и, заголовки.</p>
+        </div>
+        <pre className="code">
           {E2E_SNIPPET}
         </pre>
         <div className="muted small" style={{ marginTop: 8 }}>
@@ -143,7 +156,7 @@ export function TestsPage() {
         </Card>
 
         <Card title="Напиши сам: два test.todo">
-          <pre className="mono" style={{ background: 'var(--bg-code)', padding: 10, borderRadius: 6 }}>
+          <pre className="code">
             {TODO_SNIPPET}
           </pre>
           <div className="muted small" style={{ marginTop: 8 }}>

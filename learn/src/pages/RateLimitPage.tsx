@@ -4,7 +4,7 @@ import { apiCall, ApiExchange } from '../api/client';
 import { useAuth } from '../api/auth';
 import { useLatency } from '../hooks/useLatency';
 import { Panel, StatusBadge } from '../components/Panel';
-import { Card, Explain, NeedAuth, PageTitle } from '../components/common';
+import { Card, Explain, NeedAuth, PageTitle, WhereInCode } from '../components/common';
 
 interface Shot {
   index: number;
@@ -74,9 +74,11 @@ export function RateLimitPage() {
       <Explain>
         <p>
           <b>Як це працює на бекенді.</b> Для кожного користувача (або IP для анонімних) у Redis лежить відро: ємність 10 токенів, поповнення 1 токен/с.
-          Lua-скрипт атомарно рахує, скільки токенів натекло з минулого разу, і забирає один. Якщо токенів немає, 429 з <code>Retry-After</code>. Заголовки{' '}
-          <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code> (unix-час, коли відро знову повне) є на кожній
-          відповіді.
+          Lua-скрипт атомарно рахує, скільки токенів натекло з минулого разу, і забирає один.
+        </p>
+        <p>
+          Якщо токенів немає, відповідь 429 з Retry-After. На кожній відповіді є заголовки <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code> і{' '}
+          <code>X-RateLimit-Reset</code> (unix-час, коли відро знову повне).
         </p>
         <pre>{`Token bucket (ємність 10, +1 токен/с):            Fixed window (10 за вікно 10 с):
 
@@ -91,12 +93,20 @@ export function RateLimitPage() {
          коли відро порожнє                              скинулось на межі`}</pre>
         <p>
           Чому Lua, а не три команди з Node: "прочитати, порахувати, записати" дає гонку між двома одночасними запитами; скрипт виконується в Redis як одна
-          операція. Чому Redis, а не пам'ять процесу: два інстанси API за nginx мають спільний лічильник. Для порівняння <code>GET /demo/throttled</code>{' '}
-          обмежений готовим <code>@nestjs/throttler</code> (fixed window), його видно на сторінці Помилки.
+          операція. Чому Redis, а не пам'ять процесу: два інстанси API за nginx мають спільний лічильник.
         </p>
+        <p>Для порівняння GET /demo/throttled обмежений готовим @nestjs/throttler (fixed window), його видно на сторінці "Конфіг і формат помилок".</p>
+        <WhereInCode paths={['src/modules/ratelimit/token-bucket.service.ts (Lua)', 'token-bucket.guard.ts', 'throttler-demo.controller.ts']} />
       </Explain>
 
       <Card title="Надіслати сплеск">
+        <div className="prose">
+          <p>
+            Відро на 10 токенів, тому з 15 запитів поспіль перші 10 пройдуть (201), а решта отримають 429. Дивись на заголовки: X-RateLimit-Remaining падає з
+            9 до 0, X-RateLimit-Reset каже, коли відро знову повне, а Retry-After на 429 скільки секунд чекати.
+          </p>
+          <p>Через секунду-дві натисни "1 x POST": токен уже натік, запит пройде. Погано, якби 429 прийшов раніше 11-го запиту або не приходив узагалі.</p>
+        </div>
         <NeedAuth />
         <div className="row">
           <button type="button" className="primary" onClick={() => void send(15)} disabled={!auth.tokens || running} data-testid="send15">

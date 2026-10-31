@@ -5,7 +5,7 @@ import { apiCall, ApiExchange } from '../api/client';
 import { useAuth } from '../api/auth';
 import { useLatency } from '../hooks/useLatency';
 import { Panel, StatusBadge } from '../components/Panel';
-import { Card, Explain, NeedAuth, PageTitle } from '../components/common';
+import { Card, Explain, NeedAuth, PageTitle, TrySelf, WhereInCode } from '../components/common';
 
 interface ErrorButton {
   code: number;
@@ -94,36 +94,55 @@ export function ErrorsPage() {
       />
       <Explain>
         <p>
-          <b>Конфіг: перевірка на старті.</b> Усі змінні оточення читаються один раз і проходять zod-схему (<code>src/modules/config/config.schema.ts</code>).
-          Далі код працює з типізованим <code>AppConfig</code>, а не з <code>process.env.X</code>, який може бути <code>undefined</code>.{' '}
-          <code>z.coerce.number()</code> перетворює <code>"10"</code> у <code>10</code>, тому ніхто не робить <code>Number(...)</code> по коду, а значення за
-          замовчуванням живуть в одному місці. Якщо бракує <code>DATABASE_URL</code> або <code>JWT_SECRET</code>, процес не стартує і друкує:
+          <b>Конфіг: перевірка на старті.</b> Усі змінні оточення читаються один раз і проходять zod-схему. Далі код працює з типізованим об'єктом конфігу,
+          а не з <code>process.env</code>, де будь-яке поле може виявитись undefined.
+        </p>
+        <p>
+          Схема сама перетворює типи: рядок "10" стає числом 10, тому по коду ніхто не викликає <code>Number(...)</code>, а значення за замовчуванням живуть
+          в одному місці. Якщо бракує обов'язкової змінної, процес не стартує і друкує:
         </p>
         <pre>{`Застосунок не може стартувати: помилки у змінних оточення.
   DATABASE_URL: Invalid input: expected string, received undefined. Підказка: Рядок підключення до PostgreSQL, напр. postgres://devhub:devhub@localhost:5432/devhub
   JWT_SECRET: Invalid input: expected string, received undefined. Підказка: Секрет для підпису JWT, мінімум 16 символів. Згенеруй: openssl rand -hex 32
 Див. .env.example у корені проєкту.`}</pre>
-        <p className="muted small">
-          Спробуй сам: прибери <code>JWT_SECRET</code> з <code>.env</code>, запусти <code>npm run dev</code>, прочитай повідомлення, поверни назад. Усі змінні з
-          коментарями: <code>.env.example</code>; unit-тест на помилку і перетворення типів: <code>config.spec.ts</code>.
-        </p>
+        <TrySelf
+          items={[
+            <>
+              Прибери <code>JWT_SECRET</code> з <code>.env</code>, запусти <code>npm run dev</code>, прочитай повідомлення, поверни назад.
+            </>,
+            <>
+              Усі змінні з коментарями лежать у <code>.env.example</code>.
+            </>,
+          ]}
+        />
+        <WhereInCode paths={['src/modules/config/config.schema.ts', 'config.module.ts', 'config.spec.ts (unit-тест на помилку і перетворення типів)']} />
       </Explain>
       <Explain>
         <p>
-          <b>Помилки: одна форма для всього.</b> Сервіси кидають доменні класи (<code>NotFoundError</code>, <code>ConflictError</code>,{' '}
-          <code>UnprocessableError</code>
-          ...), а глобальний фільтр <code>AllExceptionsFilter</code> перекладає їх у HTTP-код і одну форму тіла:
+          <b>Помилки: одна форма для всього.</b> Сервіси кидають доменні класи помилок (не знайдено, конфлікт, бізнес-правило не дозволяє), а глобальний
+          фільтр перекладає їх у HTTP-код і одну форму тіла:
         </p>
         <pre>{`{ "statusCode": 404, "code": "NOT_FOUND", "message": "Post 3f2... не знайдено",
   "details": { "entity": "Post", "id": "3f2..." }, "requestId": "7c1b..." }`}</pre>
         <p>
-          Помилки валідації від <code>ValidationPipe</code> теж проходять через фільтр: <code>code: VALIDATION_ERROR</code>, у <code>details</code> список
-          повідомлень з назвами полів. Невідомі помилки стають <code>500 INTERNAL_ERROR</code> без тексту винятку назовні; повний stack іде в лог з тим самим{' '}
-          <code>requestId</code>, що й у відповіді і в заголовку <code>X-Request-Id</code>. Фронтенд пише одну функцію обробки помилок.
+          Помилки валідації теж проходять через фільтр: код <code>VALIDATION_ERROR</code>, у details список повідомлень з назвами полів. Невідомі помилки
+          стають 500 <code>INTERNAL_ERROR</code> без тексту винятку назовні.
         </p>
+        <p>
+          Повний stack іде в лог з тим самим requestId, що й у відповіді і в заголовку <code>X-Request-Id</code>. Фронтенд завдяки одній формі пише одну
+          функцію обробки помилок.
+        </p>
+        <WhereInCode paths={['src/modules/errors/domain-errors.ts', 'http-exception.filter.ts (AllExceptionsFilter)', 'ValidationPipe в app-setup.ts']} />
       </Explain>
 
       <Card title="Викликати помилку">
+        <div className="prose">
+          <p>
+            Кожна кнопка навмисно робить поганий запит. Дивись на тіло відповіді: в усіх кодах одна форма (statusCode, code, message, details, requestId), тільки
+            code і details різні. У 400 details називає поле, яке не пройшло; у 429 є заголовок Retry-After, а ряд квадратиків показує, на якому запиті з 12
+            ліміт спрацював.
+          </p>
+        </div>
         <NeedAuth>Кнопки 403 і 422 потребують токена (і не-admin для 403).</NeedAuth>
         <div className="row">
           {buttons.map((b) => (

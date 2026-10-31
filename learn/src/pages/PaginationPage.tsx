@@ -4,7 +4,7 @@ import { apiCall, buildQueryString, QueryValue } from '../api/client';
 import { decodeBase64UrlJson } from '../api/auth';
 import { useLatency } from '../hooks/useLatency';
 import { Panel, pretty } from '../components/Panel';
-import { Card, Explain, PageTitle } from '../components/common';
+import { Card, Explain, PageTitle, WhereInCode } from '../components/common';
 
 interface PostRow {
   id: string;
@@ -92,11 +92,14 @@ export function PaginationPage() {
       <PageTitle title="Пагінація, сортування, фільтри" sub="GET /posts: q, tags, sort, dir, offset або cursor" />
       <Explain>
         <p>
-          <b>Як це працює на бекенді.</b> Усі параметри проходять через DTO з class-validator (<code>sort</code> тільки з трьох значень, <code>pageSize</code>{' '}
-          ціле число), далі QueryBuilder додає <code>WHERE</code> для кожного фільтра: <code>q</code> це <code>ILIKE '%q%'</code> по title і body,{' '}
-          <code>tags</code> через оператори масивів Postgres (<code>&&</code> хоч один, <code>@&gt;</code> усі).
+          <b>Як це працює на бекенді.</b> Усі параметри проходять через DTO з class-validator: sort тільки з трьох значень, pageSize ціле число. Далі
+          QueryBuilder додає умову WHERE для кожного заданого фільтра.
         </p>
-        <table className="tbl" style={{ marginBottom: 10 }}>
+        <p>
+          Пошук q робить <code>ILIKE '%q%'</code> по title і body. Теги йдуть через оператори масивів Postgres: <code>&&</code> означає "хоч один",{' '}
+          <code>@&gt;</code> означає "усі".
+        </p>
+        <table className="tbl">
           <thead>
             <tr>
               <th></th>
@@ -133,12 +136,23 @@ export function PaginationPage() {
           </tbody>
         </table>
         <p>
-          Курсор це base64url від <code>{'{ "v": <значення сортування>, "id": <id> }'}</code> останнього елемента. <code>id</code> потрібен, бо значення
-          сортування можуть збігатися (два пости з 5 лайками). Сервер бере <code>LIMIT pageSize + 1</code>, щоб знати, чи є наступна сторінка.
+          Курсор це base64url від <code>{'{ "v": <значення сортування>, "id": <id> }'}</code> останнього елемента. id потрібен, бо значення сортування можуть
+          збігатися (два пости з 5 лайками). Сервер бере на один рядок більше, ніж pageSize, щоб знати, чи є наступна сторінка.
         </p>
+        <WhereInCode paths={['src/modules/posts/dto/list-posts.dto.ts', 'posts.service.ts (QueryBuilder, курсор)']} />
       </Explain>
 
       <Card title="Список">
+        <div className="prose">
+          <p>
+            Той самий список постів двома способами. В offset-режимі відповідь має total і номер сторінки, і "Наступна" просто збільшує page. У cursor-режимі
+            total немає, зате є nextCursor: непрозорий рядок, який панель нижче розкодує, щоб було видно значення сортування і id останнього елемента.
+          </p>
+          <p>
+            На що дивитись: query string біля кнопок і SQL у відповіді. Добре, коли в cursor-режимі сторінки не дублюються після вставки нового поста; в
+            offset-режимі це можливо. nextCursor: null означає останню сторінку.
+          </p>
+        </div>
         <div className="row">
           <label>
             q (пошук)

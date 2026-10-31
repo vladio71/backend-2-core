@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { apiCall } from '../api/client';
 import { useLatency } from '../hooks/useLatency';
 import { Panel } from '../components/Panel';
-import { Card, Explain, PageTitle } from '../components/common';
+import { Card, Explain, PageTitle, WhereInCode } from '../components/common';
 
 interface InjectionResponse {
   safe: boolean;
@@ -36,30 +36,39 @@ export function SecurityPage() {
       <Explain>
         <p>
           <b>Як це працює на бекенді.</b> Параметр ніколи не стає частиною SQL: Postgres отримує текст запиту (<code>WHERE email = $1</code>) і значення окремо.
+        </p>
+        <p>
           Якщо ж значення склеїти в рядок, <code>' OR 1=1 --</code> перетворює умову на "завжди істина" і коментує решту.
         </p>
         <ul>
           <li>
-            <b>helmet()</b> ставить безпечні заголовки (<code>X-Content-Type-Options</code>, <code>Strict-Transport-Security</code>, ...). CSP вимкнено, бо
-            Scalar і демо-сторінка вантажать скрипти з CDN; у своєму фронтенді вмикайте.
+            <b>helmet()</b> ставить безпечні заголовки (X-Content-Type-Options, Strict-Transport-Security, ...). CSP вимкнено, бо Scalar і демо-сторінка
+            вантажать скрипти з CDN; у своєму фронтенді вмикайте.
           </li>
           <li>
-            <b>CORS</b>: список origin-ів з <code>CORS_ORIGINS</code>. Цей фронтенд на :5173 є у списку типово; нестандартні заголовки (X-Cache, X-RateLimit-*)
-            браузер бачить тільки через <code>exposedHeaders</code>.
+            <b>CORS</b>: список origin-ів зі змінної CORS_ORIGINS. Цей фронтенд на :5173 є у списку типово; нестандартні заголовки (X-Cache, X-RateLimit-*)
+            браузер бачить тільки через exposedHeaders.
           </li>
           <li>
-            <b>bcrypt</b> з <code>BCRYPT_COST=10</code> (2^10 раундів, 50-100 мс на хеш). Повільний навмисно, сіль усередині: перебір дорогий, однакові паролі
-            дають різні хеші. Ніколи md5/sha1/sha256 для паролів.
+            <b>bcrypt</b> з BCRYPT_COST=10 (2^10 раундів, 50-100 мс на хеш). Повільний навмисно, сіль усередині: перебір дорогий, однакові паролі дають різні
+            хеші. Ніколи md5/sha1/sha256 для паролів.
           </li>
           <li>Refresh-токени зберігаються як sha256 (тут хеш доречний: токен випадковий і довгий), щоб витік БД не давав сесій.</li>
           <li>
-            <code>whitelist + forbidNonWhitelisted</code>: клієнт не підкине <code>role: "admin"</code> у реєстрацію.
+            Валідація з whitelist і forbidNonWhitelisted: клієнт не підкине <code>role: "admin"</code> у реєстрацію.
           </li>
           <li>Однакова 401 для "немає користувача" і "не той пароль". Токени і паролі ніколи не пишуться в логи.</li>
         </ul>
+        <WhereInCode paths={['src/app-setup.ts (helmet, CORS, ValidationPipe)', 'modules/security/sql-injection.controller.ts', 'auth/auth.service.ts (bcrypt, sha256)']} />
       </Explain>
 
       <Card title="SQL-ін'єкція: safe проти unsafe">
+        <div className="prose">
+          <p>
+            Один і той самий payload іде в один ендпоінт у двох режимах: safe передає його параметром, unsafe склеює в рядок SQL. Добре, коли safe повертає порожній список
+            (такого email немає), а unsafe повертає всіх користувачів: це і є ін'єкція. Порівняй текст SQL в обох відповідях.
+          </p>
+        </div>
         <div className="note">
           <code>GET /demo/sql-injection</code> існує ТІЛЬКИ при <code>NODE_ENV=development</code> (<code>SecurityModule.forEnv</code>: у production контролера
           немає в застосунку взагалі).

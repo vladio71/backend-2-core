@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { apiCall } from '../api/client';
 import { useLatency } from '../hooks/useLatency';
 import { Panel, StatusBadge } from '../components/Panel';
-import { Card, Explain, PageTitle } from '../components/common';
+import { Card, Explain, PageTitle, WhereInCode } from '../components/common';
 
 interface Dependency {
   status: string;
@@ -50,24 +50,33 @@ export function LoggingPage() {
       <PageTitle title="Логи, request-id і health" sub="Один requestId на запит і на його job у воркері; /health по кожній залежності" />
       <Explain>
         <p>
-          <b>Як це працює на бекенді.</b> Middleware бере <code>X-Request-Id</code> із запиту (або генерує uuid), повертає його у відповіді тим самим заголовком
-          і кладе в <code>AsyncLocalStorage</code>. Логер друкує JSON, у кожному рядку є <code>requestId</code>. Job у черзі несе <code>requestId</code> у{' '}
-          <code>job.data</code>, тому рядки з воркера мають той самий id, що й HTTP-запит, який його створив:
+          <b>Як це працює на бекенді.</b> Middleware бере заголовок <code>X-Request-Id</code> із запиту (або генерує uuid), повертає його у відповіді тим самим
+          заголовком і кладе в AsyncLocalStorage. Логер друкує JSON, у кожному рядку є requestId.
         </p>
+        <p>Job у черзі несе requestId у своїх даних, тому рядки з воркера мають той самий id, що й HTTP-запит, який його створив:</p>
         <pre>{`{"time":"2026-10-29T18:46:50.496Z","level":"info","context":"ReportsProcessor","requestId":"demo-req-1","instance":"worker","msg":"Звіт ddd5... : спроба 1, старт"}`}</pre>
         <p>
-          <b>Як знайти один запит у логах.</b> Взяти <code>X-Request-Id</code> з відповіді (панель нижче показує його на кожному запиті) і грепнути одразу API і
-          воркер: <code>docker compose logs api-1 api-2 worker | grep &lt;requestId&gt;</code>. У Grafana (профіль observability) те саме через поле{' '}
-          <code>requestId</code> угорі дашборда. Помилка 500 теж повертає цей id у тілі: користувач називає його в підтримку, і ви бачите повний stack замість
-          "щось не працює".
+          <b>Як знайти один запит у логах.</b> Взяти X-Request-Id з відповіді (панель нижче показує його на кожному запиті) і грепнути одразу API і воркер:
+        </p>
+        <pre>{`docker compose logs api-1 api-2 worker | grep <requestId>`}</pre>
+        <p>
+          У Grafana (профіль observability) те саме через поле requestId угорі дашборда. Помилка 500 теж повертає цей id у тілі: користувач називає його в
+          підтримку, і ви бачите повний stack замість "щось не працює".
         </p>
         <p>
           <b>/health.</b> Балансувальник, Docker healthcheck і Kubernetes дивляться саме сюди: 503 означає "не слати трафік на цей інстанс". Статус окремо по
           кожній залежності потрібен людині о третій ночі: одразу видно, що впав Redis, а не "щось".
         </p>
+        <WhereInCode paths={['src/modules/logging/request-id.middleware.ts', 'request-context.ts (AsyncLocalStorage)', 'app-logger.ts', 'health/health.controller.ts']} />
       </Explain>
 
       <Card title="GET /health">
+        <div className="prose">
+          <p>
+            Те, що бачить балансувальник. Добре: 200 і status ok, кожна залежність up з часом відповіді в мілісекундах. Зупини Redis і натисни ще раз: буде 503,
+            а в картці Redis стане down з текстом помилки, Postgres при цьому лишиться up.
+          </p>
+        </div>
         <div className="row">
           <button type="button" className="primary" data-testid="health" disabled={health.busy} onClick={() => void loadHealth()}>
             GET /health
@@ -109,6 +118,12 @@ export function LoggingPage() {
       </Card>
 
       <Card title="X-Request-Id на будь-якому запиті">
+        <div className="prose">
+          <p>
+            Перевіряємо, що id запиту наскрізний. Залиш поле порожнім: сервер згенерує uuid і поверне його у заголовку відповіді. Впиши свій: той самий рядок
+            повернеться назад, і саме його ти побачиш у кожному рядку логу цього запиту, включно з воркером, якщо запит створив job.
+          </p>
+        </div>
         <div className="row">
           <label>
             свій X-Request-Id (необов'язково)

@@ -4,6 +4,7 @@ import { Excalidraw, restoreElements } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import { useEffect, useMemo, useState } from 'react';
+import { DARK_CANVAS_BACKGROUND, recolorForDark } from './schemeColors';
 
 type SceneTheme = 'light' | 'dark';
 // Що приймає restoreElements: сцена приходить з JSON-файлу, її форму перевіряє бібліотека, а не TypeScript.
@@ -34,13 +35,14 @@ export default function SchemeCanvas({ elements, viewBackgroundColor }: SchemeCa
   }, []);
 
   // restoreElements доповнює поля, яких у файлі може не бути (seed, roughness, розміри), щоб сцена точно намалювалась.
-  const initialData = useMemo(
-    () => ({
-      elements: restoreElements(elements as unknown as ImportedElements, null),
-      appState: viewBackgroundColor ? { viewBackgroundColor } : {},
-    }),
-    [elements, viewBackgroundColor],
-  );
+  // У темній темі перефарбовуємо елементи самі (див. schemeColors.ts) і лишаємо Excalidraw у light, без його інверсії.
+  const initialData = useMemo(() => {
+    const source = theme === 'dark' ? recolorForDark(elements) : elements;
+    return {
+      elements: restoreElements(source as unknown as ImportedElements, null),
+      appState: { viewBackgroundColor: theme === 'dark' ? DARK_CANVAS_BACKGROUND : (viewBackgroundColor ?? '#ffffff') },
+    };
+  }, [elements, viewBackgroundColor, theme]);
 
   // Вписуємо сцену за ШИРИНОЮ в'юпорту і стаємо в її лівий верхній кут: висока схема, вписана за висотою, нечитабельна.
   // Робимо це після першого кадру, бо в момент отримання api Excalidraw ще не виміряв контейнер (width = 0) і сам
@@ -75,5 +77,6 @@ export default function SchemeCanvas({ elements, viewBackgroundColor }: SchemeCa
     };
   }, [api, initialData]);
 
-  return <Excalidraw viewModeEnabled zenModeEnabled theme={theme} initialData={initialData} excalidrawAPI={(instance) => setApi(instance)} />;
+  // key змушує Excalidraw перемонтуватись при зміні теми, бо initialData читається лише раз.
+  return <Excalidraw key={theme} viewModeEnabled zenModeEnabled theme="light" initialData={initialData} excalidrawAPI={(instance) => setApi(instance)} />;
 }

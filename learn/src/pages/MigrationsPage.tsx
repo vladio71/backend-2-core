@@ -5,7 +5,7 @@ import { apiCall, ApiExchange } from '../api/client';
 import { useAuth } from '../api/auth';
 import { useLatency } from '../hooks/useLatency';
 import { Panel, StatusBadge } from '../components/Panel';
-import { Card, Explain, NeedAuth, PageTitle } from '../components/common';
+import { Card, Explain, NeedAuth, PageTitle, TrySelf, WhereInCode } from '../components/common';
 
 interface Step {
   label: string;
@@ -84,25 +84,36 @@ export function MigrationsPage() {
       <PageTitle title="Міграції, час, soft delete" sub="Схема тільки через міграції, усі дати в UTC, видалення як deleted_at замість DELETE" />
       <Explain>
         <p>
-          <b>Міграції.</b> <code>synchronize: true</code> порівнює сутності з базою і сам застосовує різницю: перейменував поле <code>title</code> на{' '}
-          <code>heading</code>, TypeORM зробить <code>DROP COLUMN title, ADD COLUMN heading</code>, дані зникли. Тому схема змінюється тільки файлами у{' '}
-          <code>src/migrations/</code>: їх читають на review, проганяють на staging, відкочують, якщо щось пішло не так. <code>CREATE INDEX</code> на великій
-          таблиці блокує записи; у production роблять <code>CREATE INDEX CONCURRENTLY</code> поза транзакцією.
+          <b>Міграції.</b> Автосинхронізація схеми порівнює сутності з базою і сама застосовує різницю: перейменував поле title на heading, TypeORM зробить{' '}
+          <code>DROP COLUMN title, ADD COLUMN heading</code>, і дані зникли.
         </p>
         <p>
-          <b>Час.</b> Усі колонки дат мають тип <code>timestamptz</code>, сесія Postgres працює з <code>TimeZone=UTC</code>, у JSON дати йдуть ISO-рядком з{' '}
-          <code>Z</code>. <code>timestamp</code> без зони зберігає "настінний годинник" (<code>2026-03-29 02:30</code>) без інформації, де це було;{' '}
-          <code>timestamptz</code> зберігає момент часу. api-1 у Києві, api-2 у Франкфурті і воркер де завгодно бачать однакові рядки, а в локальний час
-          переводить фронтенд, бо тільки він знає зону користувача.
+          Тому схема змінюється тільки файлами міграцій: їх читають на review, проганяють на staging, відкочують, якщо щось пішло не так. Індекс на великій
+          таблиці блокує записи, у production його створюють з <code>CONCURRENTLY</code> поза транзакцією.
         </p>
         <p>
-          <b>Soft delete.</b> <code>DELETE /posts/:id</code> не видаляє рядок, а ставить <code>deleted_at = now()</code>. <code>@DeleteDateColumn</code> у
-          TypeORM сам додає <code>WHERE deleted_at IS NULL</code> до кожного <code>find()</code>, тому пост зникає зі списку і з <code>GET</code>, але лишається
-          у звітах і його можна повернути через <code>POST /posts/:id/restore</code>. Побачити видалені: <code>withDeleted()</code> або сирий SQL.
+          <b>Час.</b> Усі колонки дат мають тип <code>timestamptz</code>, сесія Postgres працює в UTC, у JSON дати йдуть ISO-рядком із Z. Тип без зони зберігає
+          "настінний годинник" (2026-03-29 02:30) без інформації, де це було; timestamptz зберігає момент часу.
         </p>
+        <p>
+          api-1 у Києві, api-2 у Франкфурті і воркер де завгодно бачать однакові рядки, а в локальний час переводить фронтенд, бо тільки він знає зону
+          користувача.
+        </p>
+        <p>
+          <b>Soft delete.</b> DELETE не видаляє рядок, а ставить <code>deleted_at = now()</code>. TypeORM сам додає умову "deleted_at IS NULL" до кожного
+          find(), тому пост зникає зі списку і з GET, але лишається у звітах, і його можна повернути через restore.
+        </p>
+        <p>Побачити видалені: withDeleted() або сирий SQL.</p>
+        <WhereInCode paths={['src/migrations/', 'data-source-options.ts (synchronize: false, TimeZone=UTC)', 'post.entity.ts (@DeleteDateColumn)', 'POST /posts/:id/restore']} />
       </Explain>
 
       <Card title="Спробувати: видалити і відновити пост">
+        <div className="prose">
+          <p>
+            Перевіряємо, що DELETE нічого не стирає фізично. Кнопка проганяє п'ять кроків: створити пост, видалити, спробувати прочитати (очікуємо 404),
+            відновити, прочитати знову (очікуємо 200 з тим самим id і вмістом). Другий restore поспіль має дати 409: пост уже не видалений.
+          </p>
+        </div>
         <NeedAuth>POST, DELETE і restore потребують токена автора.</NeedAuth>
         <div className="row">
           <button type="button" className="primary" data-testid="soft-delete-cycle" disabled={latency.busy || !auth.tokens} onClick={() => void runCycle()}>
@@ -158,10 +169,16 @@ export function MigrationsPage() {
               ))}
             </tbody>
           </table>
-          <div className="muted small" style={{ marginTop: 8 }}>
-            Спробуй: <code>npm run migration:revert</code>, потім <code>GET /demo/explain?indexed=true</code> на сторінці SQL дасть Seq Scan, бо індексу вже
-            немає. <code>npm run migration:run</code> повертає.
-          </div>
+          <TrySelf
+            items={[
+              <>
+                <code>npm run migration:revert</code>, потім <code>GET /demo/explain?indexed=true</code> на сторінці SQL дасть Seq Scan, бо індексу вже немає.
+              </>,
+              <>
+                <code>npm run migration:run</code> повертає індекс.
+              </>,
+            ]}
+          />
         </Card>
       </div>
 

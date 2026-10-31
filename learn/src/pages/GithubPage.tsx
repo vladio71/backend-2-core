@@ -4,7 +4,7 @@ import { apiCall, errorCode } from '../api/client';
 import { useAuth } from '../api/auth';
 import { useLatency } from '../hooks/useLatency';
 import { Panel } from '../components/Panel';
-import { Card, Explain, NeedAuth, PageTitle } from '../components/common';
+import { Card, Explain, NeedAuth, PageTitle, WhereInCode } from '../components/common';
 
 interface ImportResult {
   username: string;
@@ -66,9 +66,12 @@ export function GithubPage() {
       <PageTitle title="Зовнішнє API (GitHub)" sub="Семафор, бюджети на годину і хвилину, retry по Retry-After" />
       <Explain>
         <p>
-          <b>Як це працює на бекенді.</b> <code>POST /github/import {'{ username }'}</code> ходить у <code>GET /users/:username/repos?per_page=100</code>{' '}
-          посторінково і робить UPSERT у <code>github_repos</code> по <code>(owner, name)</code>. Кожен виклик проходить через <code>Semaphore(100)</code> (не
-          більше 100 у польоті), <code>WindowBudget</code> на годину і на хвилину, а 429/403 з <code>Retry-After</code> дає паузу і повтор до 3 разів.
+          <b>Як це працює на бекенді.</b> Імпорт ходить у GitHub за списком репозиторіїв користувача посторінково (по 100) і робить UPSERT у таблицю
+          github_repos за парою (owner, name).
+        </p>
+        <p>
+          Кожен виклик проходить через семафор (не більше 100 у польоті) і два бюджети: на годину і на хвилину. Відповідь 429 або 403 з Retry-After дає паузу і
+          повтор до 3 разів.
         </p>
         <table className="tbl" style={{ marginBottom: 10 }}>
           <thead>
@@ -107,17 +110,27 @@ export function GithubPage() {
           </tbody>
         </table>
         <p>
-          Primary ліміт це квота на годину (заголовки <code>x-ratelimit-remaining</code>/<code>x-ratelimit-reset</code>). Secondary ліміти захищають GitHub від
-          сплесків: навіть маючи 4000 запитів квоти, не можна відправити їх за секунду. <code>Promise.all(500 запитів)</code> отримає 403 і, якщо продовжувати,
-          тимчасовий бан. Документація:{' '}
+          Primary ліміт це квота на годину (заголовки x-ratelimit-remaining і x-ratelimit-reset). Secondary ліміти захищають GitHub від сплесків: навіть маючи
+          4000 запитів квоти, не можна відправити їх за секунду.
+        </p>
+        <p>
+          <code>Promise.all</code> на 500 запитів отримає 403 і, якщо продовжувати, тимчасовий бан. Документація:{' '}
           <a href="https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api" target="_blank" rel="noreferrer">
             Rate limits for the REST API
           </a>
           .
         </p>
+        <WhereInCode paths={['src/modules/github/github.client.ts (WindowBudget, Retry-After)', 'semaphore.ts', 'github.service.ts (UPSERT)']} />
       </Explain>
 
       <Card title="Імпорт">
+        <div className="prose">
+          <p>
+            Імпорт репозиторіїв справжнього користувача GitHub у нашу таблицю. У результаті дивись на imported (скільки записів збережено) і на client: retries
+            більше 0 означає, що GitHub відповів 429 або 403 і клієнт почекав Retry-After. Друга кнопка читає вже збережене з бази, без походу в GitHub.
+          </p>
+          <p>Без GITHUB_TOKEN ліміт 60 запитів на годину на IP, тому після кількох імпортів великих акаунтів може прийти помилка ліміту: це нормально.</p>
+        </div>
         <NeedAuth />
         <div className="row">
           <label>
