@@ -10,7 +10,7 @@ x-app-env: &app-env
   DATABASE_URL: postgres://devhub:devhub@postgres:5432/devhub
   REDIS_URL: redis://redis:6379
   JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me-0123456789}
-  CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+  CORS_ORIGINS: http://localhost:${GATEWAY_PORT:-8080},http://localhost:${LEARN_PORT:-5173}
   DB_POOL_MAX: ${DB_POOL_MAX:-10}
   QUEUE_MAX_WAITING: ${QUEUE_MAX_WAITING:-100}
   WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
@@ -32,7 +32,7 @@ services:
       PGTZ: UTC
     command: ["postgres", "-c", "max_connections=100", "-c", "timezone=UTC"]
     ports:
-      - "5432:5432"
+      - "${PG_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -45,7 +45,7 @@ services:
     image: redis:7
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -56,8 +56,8 @@ services:
   jaeger:
     image: jaegertracing/jaeger:2.22.0
     ports:
-      - "16686:16686"
-      - "4318:4318"
+      - "${JAEGER_PORT:-16686}:16686"
+      - "${OTLP_PORT:-4318}:4318"
 
   # Одноразовий крок: міграції + сід. API стартують після його успішного завершення.
   migrate:
@@ -118,7 +118,7 @@ services:
   nginx:
     image: nginx:1.27-alpine
     ports:
-      - "8080:80"
+      - "${GATEWAY_PORT:-8080}:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -131,9 +131,9 @@ services:
       # Контекст: корінь, бо learn/Dockerfile бере ще docs/architecture.excalidraw для сторінки "Схема проєкту".
       context: .
       dockerfile: learn/Dockerfile
-      args: { VITE_API_URL: "http://localhost:8080" }
+      args: { VITE_API_URL: "http://localhost:${GATEWAY_PORT:-8080}" }
     ports:
-      - "5173:5173"
+      - "${LEARN_PORT:-5173}:5173"
     depends_on:
       nginx: { condition: service_started }
 
@@ -143,7 +143,7 @@ services:
     image: prom/prometheus:v3.15.1
     profiles: [observability]
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=2d"]
@@ -174,7 +174,7 @@ services:
     image: grafana/grafana:13.2.5
     profiles: [observability]
     ports:
-      - "3001:3000"
+      - "${GRAFANA_PORT:-3001}:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
