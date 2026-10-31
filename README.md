@@ -17,7 +17,7 @@ npm run up
 - http://localhost:5173: learn, сторінка на кожну тему, починати звідси
 - http://localhost:8080/reference: контракт API
 - http://localhost:8080/queues: черги
-- http://localhost:16686: Jaeger
+- http://localhost:16686: Jaeger. Відкривати, коли якийсь запит повільний і треба побачити, на якому кроці всередині нього пішов час (SQL, пул, Redis, воркер). Коли і що там шукати: [docs/tracing.md](docs/tracing.md)
 
 Із Grafana і Prometheus: `npm run up -- --observability` (Grafana на http://localhost:3001, admin/admin).
 
