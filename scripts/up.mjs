@@ -1,6 +1,6 @@
 // Запуск проєкту однією командою: npm run up
 // Що робить:
-//   1. створює .env з .env.example, якщо .env ще немає
+//   1. ставить npm-залежності, якщо їх немає, і створює .env з .env.example
 //   2. гасить інші проєкти backend-*, які зараз працюють у Docker (вони ділять ті самі порти)
 //   3. перевіряє, чи вільні порти цього проєкту; якщо порт тримає щось поза Docker, каже що і зупиняється
 //   4. docker compose up --build -d
@@ -38,7 +38,17 @@ function dockerOk() {
   if (r.status !== 0) fail('Docker не запущений. Відкрий Docker Desktop, дочекайся зеленого статусу і повтори npm run up.');
 }
 
-// 1. .env
+// 1. залежності і .env
+function ensureDeps() {
+  const dirs = ['.', ...(existsSync('learn/package.json') ? ['learn'] : [])];
+  for (const dir of dirs) {
+    if (existsSync(`${dir}/node_modules`)) continue;
+    log(`${dir === '.' ? 'Бекенд' : dir + '/'}: ставлю npm-залежності (один раз)`);
+    const r = run('npm', ['install', '--prefix', dir, '--no-audit', '--no-fund'], { inherit: true });
+    if (r.status !== 0) fail('npm install впав. Текст помилки вище.');
+  }
+}
+
 function ensureEnv() {
   if (!existsSync('.env') && existsSync('.env.example')) {
     copyFileSync('.env.example', '.env');
@@ -173,6 +183,7 @@ async function smoke() {
 
 (async () => {
   dockerOk();
+  ensureDeps();
   ensureEnv();
   stopOtherProjects();
   await checkPorts();

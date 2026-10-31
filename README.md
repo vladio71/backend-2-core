@@ -4,37 +4,33 @@
 
 Домен: користувачі, пости (теги, статус, м'яке видалення, вектор), кредити з резерваціями, імпорт репозиторіїв з GitHub, довгі звіти в черзі, високочастотні події, жива дошка.
 
-## Запуск однією командою
+## Запуск
 
-Потрібні тільки Node 22 і запущений Docker Desktop. Далі:
+Потрібні Node 22 і запущений Docker Desktop.
 
 ```
-npm run setup   # залежності для бекенду і для learn/ одразу (звичайний npm install теж це робить)
 npm run up
 ```
 
-Скрипт сам створить `.env`, погасить інший проєкт `backend-*`, якщо він зараз працює (усі три ділять порти 5432, 6379, 16686), перевірить, чи вільні порти, підніме все через docker compose, дочекається, поки сервіси стануть healthy, зробить перевірочні запити і надрукує адреси. Відкривати http://localhost:5173 (learn) і http://localhost:8080/reference.
+Далі відкрити:
 
-З метриками й Grafana: `npm run up -- --observability`.
+- http://localhost:5173: learn, сторінка на кожну тему, починати звідси
+- http://localhost:8080/reference: контракт API
+- http://localhost:8080/queues: черги
+- http://localhost:16686: Jaeger
 
-Якщо порт тримає щось поза Docker (локальний Postgres або Redis), скрипт назве порт і зупиниться: зупини ту програму і повтори. Зупинити проєкт: `npm run down`. Разом із даними: `npm run down -- --wipe`.
+Із Grafana і Prometheus: `npm run up -- --observability` (Grafana на http://localhost:3001, admin/admin).
 
-## Запуск з Docker
+Зупинити: `npm run down`. Разом з даними: `npm run down -- --wipe`.
 
-```
-docker compose up --build
-```
+<details>
+<summary>Що робить npm run up і що робити, якщо щось пішло не так</summary>
 
-Потім:
+Ставить npm-залежності, якщо їх немає, створює `.env`, гасить інший проєкт `backend-*`, якщо він зараз працює (усі три ділять порти 5432, 6379, 16686), перевіряє, чи вільні порти, піднімає все через docker compose, чекає, поки сервіси стануть healthy, робить перевірочні запити і друкує адреси.
 
-- http://localhost:8080/reference: документація API (Scalar), сирий OpenAPI на `/openapi.json`
-- http://localhost:8080/queues: Bull Board (черги)
-- http://localhost:8080/demo/live: демо-сторінка (логін, звіт з прогресом, хто онлайн, дошка). Відкрий у 3 вкладках.
-- http://localhost:16686: Jaeger, трейси запитів через API, воркер, Postgres і Redis (див. [docs/tracing.md](docs/tracing.md))
-- `docker compose --profile observability up --build` додає Grafana (http://localhost:3001, admin/admin, дашборд `devhub`), Prometheus (http://localhost:9090) і Loki з логами усіх контейнерів (див. [docs/observability.md](docs/observability.md))
-- http://localhost:5173: навчальний фронтенд `learn/`. Сторінка на кожну тему: пояснення плюс живі панелі, де видно запит, відповідь, заголовки і час. Починати звідси. Без Docker: `cd learn && npm install && npm run dev` (див. [learn/README.md](learn/README.md))
+Якщо порт тримає щось поза Docker (локальний Postgres або Redis), скрипт назве порт і зупиниться: зупини ту програму і повтори. Якщо якийсь сервіс упав, скрипт надрукує його логи; повний лог: `docker compose logs <сервіс>`.
 
-Compose піднімає `postgres` (pgvector), `redis`, `jaeger`, `migrate` (міграції + сід), `api-1`, `api-2`, `worker`, `nginx` (round robin на обидва API), `learn` (фронтенд). Профіль `observability` додає `prometheus`, `loki`, `promtail`, `grafana`. Сід створює `admin@devhub.local`, `olena@`, `taras@`, `iryna@devhub.local` з паролем `password123`, 30 постів, кредити, 200 000 подій.
+</details>
 
 ## Запуск без Docker
 
