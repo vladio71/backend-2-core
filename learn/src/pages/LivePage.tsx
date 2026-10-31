@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Socket } from 'socket.io-client';
 import { useAuth } from '../api/auth';
 import { connectLive } from '../api/live';
-import { Card, Explain, NeedAuth, PageTitle, WhereInCode } from '../components/common';
+import { PanelFooter, Topic } from '../components/TopicParts';
+import { Card, NeedAuth, PageTitle } from '../components/common';
 
 interface Point {
   x: number;
@@ -171,67 +172,114 @@ export function LivePage() {
 
   return (
     <>
-      <PageTitle title="Живе: presence і дошка" sub="socket.io: хто онлайн і спільна дошка в усіх вкладках, Redis-адаптер на двох інстансах. Порівняння polling / SSE / WebSocket на сторінці Черга і воркер" />
-      <Explain>
-        <p>
-          <b>Як це працює на бекенді.</b> Namespace /live, JWT передається в handshake. Після підключення сокет потрапляє в кімнати: своя (за id користувача),
-          presence і board.
-        </p>
-        <p>
-          Presence живе у Redis: ключ на користувача з TTL 30 с і лічильником вкладок, heartbeat кожні 10 с. Штрихи дошки лежать у Redis list (до 5000), новий
-          сокет одразу отримує історію дошки.
-        </p>
-        <p>
-          <b>Два інстанси.</b> У docker compose є api-1 і api-2 за nginx без sticky-сесій. emit у кімнату board на api-1 без адаптера дійде тільки до сокетів
-          api-1. Redis-адаптер публікує emit у Redis, і api-2 повторює його своїм сокетам.
-        </p>
-        <p>Поле instance у події presence:update показує, який інстанс надіслав подію.</p>
-        <div className="note ok">Відкрий цю сторінку в 3 вкладках: усі побачать одне одного в списку онлайн і штрихи одне одного на дошці.</div>
-        <WhereInCode paths={['src/modules/live/live.gateway.ts', 'presence.service.ts', 'board.service.ts', 'redis-io.adapter.ts (@socket.io/redis-adapter)']} />
-      </Explain>
+      <PageTitle title="Живе: presence і дошка" sub="socket.io: хто онлайн і спільна дошка, Redis-адаптер для двох API. Порівняння polling / SSE / WebSocket на сторінці Черга і воркер" />
 
-      <NeedAuth />
+      <Topic
+        what={
+          <>
+            Presence відповідає на питання «хто зараз на сайті». Сервер штовхає клієнтам оновлення сам, коли хтось зайшов або вийшов, а клієнти не опитують його
+            раз на секунду.
+          </>
+        }
+        when={
+          <>
+            Потрібно для чатів, спільного редагування, лобі гри: там, де важливо бачити живих людей. Не потрібно для «востаннє бачили» або статистики відвідувань:
+            досить записати час у базу.
+          </>
+        }
+        how={
+          <>
+            Клієнт підключається до namespace /live з JWT у handshake. Для кожного користувача в Redis лежить ключ із TTL 30 с і лічильник вкладок, heartbeat
+            оновлює їх кожні 10 с. TTL потрібен на випадок, коли процес API впав: подія disconnect тоді не прийде, і без TTL людина висіла б онлайн вічно.
+            Офлайн користувач стає, коли закрилась остання його вкладка.
+          </>
+        }
+      />
 
-      <div className="card-grid">
-        <Card title="Хто онлайн (presence:update)">
-          <div className="prose">
+      <Card title="Хто онлайн (presence:update)">
+        <div className="prose">
+          <p>
+            Ти підключаєшся автоматично, тому в списку принаймні ти сам. Статус вище і журнал нижче показують сирі події сокета: connect, presence:update,
+            board:history. Поле instance каже, який саме API надіслав подію (api-1 або api-2 у docker compose, інакше один api-1).
+          </p>
+        </div>
+        <NeedAuth />
+        <div className="row">
+          <span className={`status-dot ${connected ? 'ok' : 'down'}`} />
+          <span data-testid="ws-status">{connected ? 'підключено' : 'не підключено'}</span>
+          {online && <span className="muted small">instance: {online.instance}</span>}
+        </div>
+        {error && <div className="note err">{error}</div>}
+        <ul data-testid="presence">
+          {(online?.online ?? []).map((u) => (
+            <li key={u.userId}>
+              {u.displayName} <span className="muted small mono">{u.userId.slice(0, 8)}</span>
+            </li>
+          ))}
+        </ul>
+        <h3>Журнал подій</h3>
+        <pre className="mono small" style={{ maxHeight: 200, overflow: 'auto' }}>
+          {log.join('\n') || 'порожньо'}
+        </pre>
+        <PanelFooter
+          paths={['src/modules/live/live.gateway.ts (handshake, heartbeat кожні 10 с)', 'src/modules/live/presence.service.ts (TTL 30 с, лічильник вкладок)']}
+          tries={[
+            <>
+              Відкрий цю сторінку ще в одній вкладці під іншим користувачем: у списку мають бути обидва. Закрий її: другий зникне одразу.
+            </>,
+            <>
+              Вбий процес API через kill -9 і виконай у redis-cli TTL presence:&lt;твій id&gt;: ключ зникне сам за 30 с, бо disconnect не прийшов.
+            </>,
+          ]}
+        />
+      </Card>
+
+      <Topic
+        what={
+          <>
+            Спільна дошка: штрих, який ти малюєш, з'являється в усіх відкритих вкладках, а нова вкладка одразу отримує вже намальоване.
+          </>
+        }
+        when={
+          <>
+            Потрібно, коли дія одного клієнта має дійти до інших миттєво: дошка, чат, курсори. Не потрібно, коли досить оновити сторінку раз на хвилину: тоді
+            звичайний GET простіший і дешевший.
+          </>
+        }
+        how={
+          <>
+            Клієнт збирає точки в буфер і кожні 16 мс (один кадр) шле одну подію board:draw з пачкою, а не десятки на кожен рух миші. Сервер розсилає її в кімнату
+            board усім, крім відправника, і додає в Redis list board:strokes (до 5000 штрихів). Новий сокет одразу отримує цей список як board:history.
+          </>
+        }
+        extra={
+          <>
             <p>
-              Відкрий цю сторінку ще у двох вкладках, можна іншим користувачем. У списку мають бути всі, хто зараз підключений; закрита вкладка зникає зі списку
-              за кілька секунд (TTL ключа 30 с, а лічильник вкладок не дає зникнути, поки відкрита хоч одна). instance підказує, який з двох API надіслав подію:
-              якщо він різний у різних вкладках, адаптер через Redis працює.
+              <b>Навіщо Redis-адаптер.</b> У docker compose працюють два API: api-1 і api-2, а nginx роздає з'єднання по черзі. Твоя вкладка потрапила на api-1,
+              вкладка друга на api-2. Ти малюєш, api-1 хоче розіслати штрих «усім у кімнаті», але знає лише про сокети, підключені до нього самого. Вкладка на
+              api-2 для нього не існує, і штрих туди не дійде.
             </p>
-          </div>
-          <div className="row">
-            <span className={`status-dot ${connected ? 'ok' : 'down'}`} />
-            <span data-testid="ws-status">{connected ? 'підключено' : 'не підключено'}</span>
-            {online && <span className="muted small">instance: {online.instance}</span>}
-          </div>
-          {error && <div className="note err">{error}</div>}
-          <ul data-testid="presence">
-            {(online?.online ?? []).map((u) => (
-              <li key={u.userId}>
-                {u.displayName} <span className="muted small mono">{u.userId.slice(0, 8)}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-        <Card title="Журнал подій">
-          <div className="prose">
-            <p>Сирі події сокета в порядку надходження: connect, presence:update, board:history, board:draw. Якщо тут тихо, дивись на статус підключення вище.</p>
-          </div>
-          <pre className="mono small" style={{ maxHeight: 200, overflow: 'auto' }}>
-            {log.join('\n') || 'порожньо'}
-          </pre>
-        </Card>
-      </div>
+            <p>
+              Redis-адаптер це внутрішній телефон між API. api-1 кладе подію в Redis, api-2 її чує і розсилає своїм сокетам. Клієнтам цього не видно: вони
+              бачать одну кімнату. З одним API адаптер нічого не змінює, тому на локальному запуску без Docker різниці не відчути. Те саме правило, що для presence:
+              стан живе в Redis, а не в пам'яті процесу.
+            </p>
+          </>
+        }
+      />
 
       <Card title="Дошка (board:draw, board:history, board:clear)">
         <div className="prose">
           <p>
-            Малюй мишею: штрих летить на сервер і повертається в усі вкладки, у кожної свій колір. Нова вкладка одразу отримує історію штрихів з Redis.
-            Погано, якби штрих з іншої вкладки не з'являвся: значить, сокети сидять на різних інстансах без спільного адаптера.
+            Відкрий цю сторінку у двох вкладках, можна під різними користувачами: це єдина панель, якій потрібна друга вкладка. Малюй мишею в одній: штрих з'явиться
+            в іншій, у кожної вкладки свій колір. Третя вкладка, відкрита пізніше, одразу покаже намальоване (history при вході).
+          </p>
+          <p>
+            Погано, якби штрих з іншої вкладки не з'являвся: значить, сокети сидять на різних API без спільного адаптера. Сама дошка в одній вкладці теж працює, бо
+            твій штрих малюється локально.
           </p>
         </div>
+        <NeedAuth />
         <div className="row">
           <span className="pill">
             мій колір{' '}
@@ -269,9 +317,17 @@ export function LivePage() {
           onPointerUp={onUp}
           onPointerLeave={onUp}
         />
-        <div className="muted small" style={{ marginTop: 6 }}>
-          Клієнт збирає точки у буфер і кожні 16 мс надсилає одну подію board:draw з пачкою точок. Сервер розсилає її всім у кімнаті board, крім відправника.
-        </div>
+        <PanelFooter
+          paths={['src/modules/live/board.service.ts (Redis list board:strokes, LTRIM 5000)', 'src/modules/live/redis-io.adapter.ts (@socket.io/redis-adapter)', 'src/modules/live/live.gateway.ts (board:draw)']}
+          tries={[
+            <>
+              Намалюй щось, відкрий третю вкладку: штрихи прийдуть як history. Подивись у redis-cli LLEN board:strokes.
+            </>,
+            <>
+              У redis-io.adapter.ts закоментуй рядок server.adapter(...), підніми docker compose з двома API і малюй: частина вкладок перестане бачити одна одну.
+            </>,
+          ]}
+        />
       </Card>
     </>
   );

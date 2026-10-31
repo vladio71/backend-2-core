@@ -8,7 +8,8 @@ import { getBaseUrl } from '../api/baseUrl';
 import { connectLive } from '../api/live';
 import { useLatency } from '../hooks/useLatency';
 import { Panel } from '../components/Panel';
-import { Card, Explain, NeedAuth, PageTitle, Progress, WhereInCode } from '../components/common';
+import { PanelFooter, Topic } from '../components/TopicParts';
+import { Card, Explain, NeedAuth, PageTitle, Progress } from '../components/common';
 
 interface ReportEvent {
   reportId: string;
@@ -39,6 +40,8 @@ interface QueueStats {
   maxWaiting: number;
 }
 
+const FLOOD_WAVE = 10;
+
 const EMPTY: Follower = { status: 'очікую', progress: 0, attempt: 0, requests: 0, messages: 0, error: null, startedAt: 0, finishedAt: null };
 
 function isFinal(status: string): boolean {
@@ -59,6 +62,10 @@ export function QueuePage() {
   const [events, setEvents] = useState<{ count: number; ok: number; ms: number } | null>(null);
   const [eventsBusy, setEventsBusy] = useState(false);
   const [floodBusy, setFloodBusy] = useState(false);
+  const [workerHint, setWorkerHint] = useState(false);
+  const [drained, setDrained] = useState<{ removed: number; waitingAfter: number | null } | null>(null);
+  const [peakWaiting, setPeakWaiting] = useState<number | null>(null);
+  const pollStatusRef = useRef('очікую');
   const cleanupRef = useRef<Array<() => void>>([]);
 
   // Стан черги: GET /reports/queue-stats щосекунди, поки сторінка відкрита.
@@ -77,6 +84,7 @@ export function QueuePage() {
   }, []);
 
   useEffect(() => () => stopFollowers(), []);
+  pollStatusRef.current = poll.status;
 
   function stopFollowers() {
     for (const fn of cleanupRef.current) fn();
@@ -88,6 +96,9 @@ export function QueuePage() {
     setPoll(EMPTY);
     setSse(EMPTY);
     setWs(EMPTY);
+    setWorkerHint(false);
+    // Свій стан готуємо самі: прибираємо свої job-и, що застрягли в черзі (наприклад, після flood), інакше звіт стояв би за ними.
+    await apiCall('POST', '/reports/demo/drain');
     // WebSocket підключаємо ДО створення звіту, щоб не пропустити перші події.
     const socket = await connectLive();
     const res = await latency.track(apiCall('POST', '/reports', { body: failRate > 0 ? { failRate } : {} }));
@@ -97,6 +108,9 @@ export function QueuePage() {
     }
     const id = (res.body as { id: string }).id;
     setReportId(id);
+    window.setTimeout(() => {
+      if (pollStatusRef.current === 'queued') setWorkerHint(true);
+    }, 4000);
     const t0 = Date.now();
     setPoll({ ...EMPTY, startedAt: t0, status: 'queued' });
     setSse({ ...EMPTY, startedAt: t0, status: 'queued' });
@@ -176,9 +190,29 @@ export function QueuePage() {
   async function runFlood() {
     setFloodBusy(true);
     setFlood(null);
+    setDrained(null);
+    setPeakWaiting(null);
     try {
-      const results = await Promise.all(Array.from({ length: floodN }, () => apiCall('POST', '/reports', { body: {} })));
+      // Чистий старт: прибираємо свої завислі job-и, щоб результат не залежав від попередніх кліків.
+      await apiCall('POST', '/reports/demo/drain');
+      // Хвилями по 10 паралельних: перевірка "waiting < QUEUE_MAX_WAITING" і додавання job-а це два кроки, і 120 запитів
+      // одночасно всі встигають прочитати "waiting = 0". Хвилі показують ліміт так, як його бачать реальні клієнти.
+      const results: ApiExchange[] = [];
+      for (let sent = 0; sent < floodN; sent += FLOOD_WAVE) {
+        const size = Math.min(FLOOD_WAVE, floodN - sent);
+        results.push(...(await Promise.all(Array.from({ length: size }, () => apiCall('POST', '/reports', { body: {} })))));
+      }
       setFlood(results);
+      const peak = await apiCall('GET', '/reports/queue-stats', { auth: false });
+      if (peak.ok) {
+        setStats(peak.body as QueueStats);
+        setPeakWaiting((peak.body as QueueStats).waiting);
+      }
+      // Відновлення: прибираємо свої job-и, що чекають. Після цього сторінку можна використовувати знову.
+      const drainRes = await apiCall('POST', '/reports/demo/drain');
+      const after = await apiCall('GET', '/reports/queue-stats', { auth: false });
+      if (after.ok) setStats(after.body as QueueStats);
+      setDrained({ removed: drainRes.ok ? (drainRes.body as { removed: number }).removed : 0, waitingAfter: after.ok ? (after.body as QueueStats).waiting : null });
     } finally {
       setFloodBusy(false);
     }
@@ -203,16 +237,31 @@ export function QueuePage() {
   return (
     <>
       <PageTitle title="Черга і воркер: polling, SSE, WebSocket" sub="BullMQ, окремий процес воркера, 202 + три способи стежити за job-ом, backpressure, батчинг" />
-      <Explain>
-        <p>
-          <b>Як це працює на бекенді.</b> POST /reports створює рядок у таблиці reports, кладе job у чергу BullMQ (Redis) і одразу відповідає{' '}
-          <code>202 {'{ id, status: "queued" }'}</code>.
-        </p>
-        <p>
-          Воркер (окремий процес) бере job, робить 5 кроків по 1 с, оновлюючи прогрес, при помилці повторює до 3 разів з експоненційним backoff. Статус летить з
-          воркера в API через Redis pub/sub, а API роздає його polling-у, SSE і WebSocket-у.
-        </p>
-        <pre>{`клієнт        API                    Redis (BullMQ)        воркер               БД
+
+      <Topic
+        what={
+          <>
+            Довга робота не має виконуватись усередині HTTP-запиту. API кладе job у чергу (Redis), одразу відповідає 202 і йде далі, а окремий процес-воркер
+            бере job і робить його. Клієнт отримує id і потім дізнається результат.
+          </>
+        }
+        when={
+          <>
+            Потрібно, коли робота довша за секунду-дві, коли її треба повторити при збої або коли піки навантаження треба згладити чергою. Не потрібно для
+            швидких запитів: черга додає Redis, окремий процес і нову категорію помилок (job загубився, воркер не запущений). Якщо відповідь потрібна тут і зараз,
+            роби її в запиті.
+          </>
+        }
+        how={
+          <>
+            POST /reports пише рядок у таблицю reports, кладе job у BullMQ і відповідає 202. Воркер (src/worker.ts) робить 5 кроків по 1 с, оновлює прогрес
+            і публікує його в Redis pub/sub. API підписаний на канал і роздає статус клієнтам. Рядок у БД створюється ДО job-а: якщо Redis упаде між двома
+            кроками, ми побачимо звіт у статусі queued без job-а, а не job без звіту.
+          </>
+        }
+        extra={
+          <>
+            <pre>{`клієнт        API                    Redis (BullMQ)        воркер               БД
   |-- POST -->|                         |                     |                   |
   |           |-- INSERT reports ------------------------------------------------->|
   |           |-- add(job) ------------>|                     |                   |
@@ -221,17 +270,15 @@ export function QueuePage() {
   |           |<== pub report-events ===|<== publish =========|                   |
   |<-- SSE ---|                         |                     |   ...5 кроків...  |
   |<-- WS ----|                         |                     |-- UPDATE done --->|`}</pre>
-        <p>
-          <b>Backpressure.</b> Якщо у черзі чекає більше QUEUE_MAX_WAITING (типово 100) job-ів, POST /reports відповідає <code>429 QUEUE_FULL</code> із
-          заголовком Retry-After: 5. Обіцяти те, чого не виконаємо, гірше, ніж чесно сказати "пізніше".
-        </p>
-        <p>
-          <b>Батчинг.</b> POST /events кладе один job на подію. Воркер черги events має concurrency 100, а колектор збирає job-и "у польоті" у пачку до 100 (або
-          50 мс очікування) і пише ОДНИМ <code>INSERT ... VALUES (...), (...)</code>.
-        </p>
-        <p>Виміряно: 500 одиничних INSERT 459 мс, 5 пачок по 100 рядків 10 мс, прискорення x47.</p>
-        <WhereInCode paths={['src/worker.ts', 'modules/jobs/reports.processor.ts', 'report-events.service.ts (pub/sub)', 'batch-collector.ts', 'events.processor.ts']} />
-      </Explain>
+            <p>
+              <b>Чому в job-а такі налаштування.</b> attempts: 3, бо збій часто тимчасовий (мережа, перезапуск, лок), а звіт, який не вийшов тричі, не вийде і
+              вчетверте, лише забиватиме чергу. backoff exponential з 500 мс дає паузи 0,5 с і 1 с: не добиваємо залежність, яка щойно впала. removeOnComplete: 100 і
+              removeOnFail: 100, бо результат уже лежить у таблиці reports, а Redis не має рости вічно; останні сто лишаються, щоб було що розглянути в Bull Board.
+              Для подій інакше: removeOnComplete: true, бо їх тисячі, а removeOnFail: 1000, щоб розібрати збої.
+            </p>
+          </>
+        }
+      />
 
       <Explain>
         <p>
@@ -239,8 +286,8 @@ export function QueuePage() {
           сказати браузеру. Але звіт робиться 5 секунд у воркері, і браузер хоче бачити прогрес. Як йому дізнатись, що щось змінилось? Є три способи.
         </p>
         <p>
-          <b>Polling (опитування).</b> Браузер сам питає знову і знову: <code>GET /reports/:id</code> кожні 500 мс, «вже готово?». Просто, працює скрізь, без
-          нічого нового. Ціна: купа порожніх запитів, у яких відповідь «ще ні», і затримка до півсекунди між подією і тим, що ти її побачив.
+          <b>Polling (опитування).</b> Браузер сам питає знову і знову: <code>GET /reports/:id</code> кожну секунду, «вже готово?». Просто, працює скрізь, без
+          нічого нового. Ціна: купа порожніх запитів, у яких відповідь «ще ні», і затримка до секунди між подією і тим, що ти її побачив.
         </p>
         <p>
           <b>SSE (Server-Sent Events).</b> Браузер робить один <code>GET /reports/:id/events</code>, а сервер не закриває з'єднання і дописує в нього рядок
@@ -253,7 +300,7 @@ export function QueuePage() {
           по ній безкоштовно: нуль нових запитів.
         </p>
         <pre>{`                 хто починає      напрям          нових запитів на один звіт
-polling          клієнт, щоразу   клієнт -> сервер  10-11
+polling          клієнт, щоразу   клієнт -> сервер  6-7 (звіт триває 5 с, опитування щосекунди)
 SSE              клієнт, один раз сервер -> клієнт  1
 WebSocket        клієнт, один раз обидва боки       0 (лінія вже є)`}</pre>
         <p>
@@ -265,12 +312,13 @@ WebSocket        клієнт, один раз обидва боки       0 (л
       <Card title="Один звіт, три спостерігачі">
         <div className="prose">
           <p>
-            Нижче один звіт на 5 секунд і всі три способи одночасно стежать за ним. Три колонки показують той самий job: статус, прогрес, номер спроби. Головне
-            число внизу кожної колонки: скільки HTTP-запитів це коштувало. Polling близько 10, SSE один, WebSocket нуль. Уяви 1000 відкритих вкладок: це 1000
-            запитів кожні півсекунди проти нуля.
+            Одна кнопка: перед стартом ми самі прибираємо твої застряглі job-и, потім створюємо звіт на 5 секунд, і всі три способи стежать за ним одночасно.
+            Колонки показують той самий job: статус, прогрес, номер спроби. Головне число внизу кожної: скільки HTTP-запитів це коштувало. Polling близько 6-7, SSE
+            один, WebSocket нуль. Уяви 1000 відкритих вкладок: це 1000 запитів щосекунди проти нуля.
           </p>
           <p>
-            Добре: усі три доходять до completed з прогресом 100. Постав failRate 0.5, щоб побачити attempt 2 і 3 і, можливо, failed після третьої спроби.
+            Добре: усі три доходять до completed з прогресом 100. Постав failRate 0.5, щоб побачити attempt 2 і 3 і, можливо, failed після третьої спроби. Потрібен
+            запущений воркер.
           </p>
         </div>
         <NeedAuth />
@@ -288,6 +336,7 @@ WebSocket        клієнт, один раз обидва боки       0 (л
             </span>
           )}
         </div>
+        {workerHint && <div className="note err">Звіт 4 секунди стоїть у queued: схоже, воркер не запущений. Запусти npm run start:worker (або dev:worker) і натисни кнопку ще раз.</div>}
         <div className="cols-3">
           <FollowerCol title="Polling" sub="GET /reports/:id кожну 1 с" f={poll} testId="col-poll" costLabel={`${poll.requests} HTTP-запитів`} />
           <FollowerCol
@@ -306,104 +355,178 @@ WebSocket        клієнт, один раз обидва боки       0 (л
           />
         </div>
         <Panel exchange={latency.exchange} busy={latency.busy} />
+        <PanelFooter
+          paths={[
+            'src/modules/jobs/reports.service.ts (create: enqueue з attempts і backoff)',
+            'src/modules/jobs/reports.processor.ts (5 кроків, retry, публікація статусу)',
+            'src/modules/jobs/reports.controller.ts (SSE) і report-events.service.ts (pub/sub)',
+          ]}
+          tries={[
+            <>
+              Постав failRate 0.5 і запусти звіт кілька разів: у якій колонці раніше видно attempt 2? Потім зміни delay у backoff на 5000 і подивись на паузу між спробами.
+            </>,
+            <>Закрий вкладку під час звіту і відкрий Bull Board: job доробить без тебе, бо живе у воркері.</>,
+          ]}
+        />
       </Card>
 
-      <div className="card-grid">
-        <Card title="Стан черги (GET /reports/queue-stats щосекунди)">
-          <div className="prose">
-            <p>
-              Лічильники BullMQ: waiting скільки job-ів чекають воркера, active скільки виконуються зараз (не більше за WORKER_CONCURRENCY), completed і
-              failed за весь час. Якщо воркер не запущений, waiting росте, а active лишається 0.
-            </p>
-          </div>
-          {stats ? (
-            <div className="row" data-testid="queue-stats">
-              <span className="pill">
-                waiting <b className="mono">{stats.waiting}</b> / {stats.maxWaiting}
-              </span>
-              <span className="pill">
-                active <b className="mono">{stats.active}</b>
-              </span>
-              <span className="pill">
-                completed <b className="mono">{stats.completed}</b>
-              </span>
-              <span className="pill">
-                failed <b className="mono">{stats.failed}</b>
-              </span>
-            </div>
-          ) : (
-            <div className="muted">нема даних</div>
-          )}
-          {stats && (
-            <div className="progress">
-              <span
-                style={{
-                  width: `${Math.min(100, (stats.waiting / Math.max(1, stats.maxWaiting)) * 100)}%`,
-                  background: stats.waiting >= stats.maxWaiting ? 'var(--err)' : undefined,
-                }}
-              />
-            </div>
-          )}
-          <div className="muted small">Bull Board з тим самим: {getBaseUrl()}/queues</div>
-        </Card>
+      <Topic
+        what={
+          <>
+            Backpressure це чесна відмова, коли система не встигає. Якщо черга вже довга, нові звіти не приймаємо і кажемо «пізніше» (429 і Retry-After),
+            замість обіцяти те, чого не виконаємо.
+          </>
+        }
+        when={
+          <>
+            Потрібно, коли роботу кладуть швидше, ніж воркер її робить: без межі черга росте, Redis їсть пам'ять, а клієнт чекає годинами. Не потрібно, коли черга
+            короткоживуча і навантаження завжди менше за пропускну здатність воркера.
+          </>
+        }
+        how={
+          <>
+            Межа це QUEUE_MAX_WAITING, у проєкті 100. Воркер робить 2 звіти по 5 с, тобто 0,4 звіту за секунду. Сотий у черзі чекав би 100 / 0,4 = 250 с, майже
+            чотири хвилини. Тому 101-й отримує 429 QUEUE_FULL з Retry-After: 5. Межа м'яка: перевірка «скільки чекає» і додавання job-а це два окремі кроки,
+            тому 120 запитів в один момент усі бачать порожню чергу і проходять усі 120. Це та сама гонка, що на сторінці «Кредити», тільки для черги її
+            наслідки безпечні. Для грошей так не можна.
+          </>
+        }
+      />
 
-        <Card title="Flood: впертися в QUEUE_FULL">
-          <div className="prose">
-            <p>
-              Перевіряємо backpressure: шлемо більше звітів, ніж черга погоджується тримати. Добре, коли частина відповідей 202, а решта 429 QUEUE_FULL з
-              Retry-After, і waiting у стані черги не перевищує ліміт. Погано, якби усі 202 проходили, а черга росла без межі.
-            </p>
+      <Card title="Flood: впертися в QUEUE_FULL і відновити чергу">
+        <div className="prose">
+          <p>
+            Кнопка шле N звітів хвилями по {FLOOD_WAVE} паралельних, потім показує, скільки прийнято (202) і скільки відхилено (429). Це вже реальний стан черги в момент
+            піку. Одразу після цього ми самі прибираємо твої job-и, що чекають, тому сторінкою можна користуватись знову, а звіт з верхньої панелі не стоїть у черзі.
+          </p>
+          <p>
+            Добре: приблизно {stats?.maxWaiting ?? 100} з N пройшли як 202 (плюс 2, які воркер встиг узяти одразу), решта 429 з Retry-After 5, а waiting у піку не
+            перевищує межу більше ніж на розмір хвилі. Погано, якби усі 202 проходили, а черга росла без межі.
+          </p>
+        </div>
+        <NeedAuth />
+        <div className="row">
+          <label>
+            N звітів
+            <input type="number" min={1} max={500} value={floodN} onChange={(e) => setFloodN(Number(e.target.value) || 120)} />
+          </label>
+          <button type="button" className="danger" onClick={() => void runFlood()} disabled={!auth.tokens || floodBusy} data-testid="flood">
+            {floodBusy ? 'надсилаю...' : `${floodN} x POST /reports`}
+          </button>
+        </div>
+        {stats && (
+          <div className="row" data-testid="queue-stats">
+            <span className="pill">
+              waiting <b className="mono">{stats.waiting}</b> / {stats.maxWaiting}
+            </span>
+            <span className="pill">
+              active <b className="mono">{stats.active}</b>
+            </span>
+            <span className="pill">
+              completed <b className="mono">{stats.completed}</b>
+            </span>
+            <span className="pill">
+              failed <b className="mono">{stats.failed}</b>
+            </span>
+            <span className="muted small">оновлюється щосекунди, GET /reports/queue-stats</span>
           </div>
-          <div className="row">
-            <label>
-              N звітів одночасно
-              <input type="number" min={1} max={500} value={floodN} onChange={(e) => setFloodN(Number(e.target.value) || 120)} />
-            </label>
-            <button type="button" className="danger" onClick={() => void runFlood()} disabled={!auth.tokens || floodBusy} data-testid="flood">
-              {floodBusy ? 'надсилаю...' : `${floodN} x POST /reports`}
-            </button>
+        )}
+        {stats && (
+          <div className="progress">
+            <span
+              style={{
+                width: `${Math.min(100, (stats.waiting / Math.max(1, stats.maxWaiting)) * 100)}%`,
+                background: stats.waiting >= stats.maxWaiting ? 'var(--err)' : undefined,
+              }}
+            />
           </div>
-          <div className="note">Воркер робить 2 звіти по 5 с одночасно, тому черга розсмоктується хвилин 5. QUEUE_MAX_WAITING у .env бекенду типово 100.</div>
-          {flood && (
-            <div className="row" data-testid="flood-result">
+        )}
+        {flood && (
+          <div className="row" data-testid="flood-result">
+            <span className="pill">
+              202 accepted <b className="mono" data-testid="flood-202">{floodAccepted}</b>
+            </span>
+            <span className="pill">
+              429 QUEUE_FULL <b className="mono" data-testid="flood-429">{floodRejected}</b>
+            </span>
+            {floodRetryAfter && (
               <span className="pill">
-                202 accepted <b className="mono">{floodAccepted}</b>
+                Retry-After <b className="mono">{floodRetryAfter} с</b>
               </span>
+            )}
+            {peakWaiting !== null && (
               <span className="pill">
-                429 QUEUE_FULL <b className="mono">{floodRejected}</b>
-              </span>
-              {floodRetryAfter && (
-                <span className="pill">
-                  Retry-After <b className="mono">{floodRetryAfter} с</b>
-                </span>
-              )}
-            </div>
-          )}
-        </Card>
-
-        <Card title="300 подій: батчинг у воркері">
-          <div className="prose">
-            <p>
-              300 окремих POST /events, кожен кладе свій job. Дивись у логи воркера: замість 300 INSERT він пише кілька пачок по 100 рядків. Тут видно тільки
-              час і кількість 202; скільки саме пачок вийшло, показує лог воркера "Записано пачку подій: N".
-            </p>
-          </div>
-          <div className="row">
-            <button type="button" className="primary" onClick={() => void send300()} disabled={!auth.tokens || eventsBusy} data-testid="send-events">
-              {eventsBusy ? 'надсилаю...' : '300 x POST /events'}
-            </button>
-            {events && (
-              <span className="pill" data-testid="events-result">
-                202: <b className="mono">{events.ok}</b> з {events.count} за <b className="mono">{events.ms} мс</b>
+                waiting у піку <b className="mono">{peakWaiting}</b>
               </span>
             )}
           </div>
-          <div className="note ok">
-            API відповідає 202 одразу (job у черзі). Воркер збере ці 300 job-ів у 3-4 пачки і зробить 3-4 INSERT замість 300. Дивись лог воркера: розмір кожної
-            пачки.
+        )}
+        {drained && (
+          <div className="note ok" data-testid="flood-restored">
+            Черга відновлена: прибрано {drained.removed} job-ів, waiting тепер {drained.waitingAfter ?? '?'}. Два звіти, які воркер уже взяв, добіжать за 5 с.
           </div>
-        </Card>
-      </div>
+        )}
+        <div className="muted small">Bull Board з тим самим: {getBaseUrl()}/queues</div>
+        <PanelFooter
+          paths={[
+            'src/modules/jobs/reports.service.ts (create: перевірка QUEUE_MAX_WAITING; drainMine: демо-відновлення)',
+            'src/modules/config/config.schema.ts (QUEUE_MAX_WAITING, WORKER_CONCURRENCY)',
+            'test/e2e/jobs.e2e-spec.ts (QUEUE_FULL при ліміті 3)',
+          ]}
+          tries={[
+            <>Запусти API з QUEUE_MAX_WAITING=20 і повтори flood: скільки 202 тепер?</>,
+            <>Зміни FLOOD_WAVE на 120 у QueuePage.tsx: усі запити йдуть в один момент. Скільки з них проскочить понад межу?</>,
+          ]}
+        />
+      </Card>
+
+      <Topic
+        what={
+          <>
+            Батчинг це збирання багатьох дрібних записів в один великий INSERT. База платить за кожну команду (мережа, парсинг, WAL), а не лише за рядки, тому 100
+            рядків одним запитом набагато дешевші за 100 запитів по рядку.
+          </>
+        }
+        when={
+          <>
+            Потрібно для потоку дрібних подій: кліки, метрики, логи. Не потрібно для записів, які мають бути видимі одразу або де кожен рядок може впасти окремо: там
+            важливіше простота.
+          </>
+        }
+        how={
+          <>
+            POST /events кладе один job на подію. Воркер черги events має concurrency 100, а колектор збирає job-и «у польоті» в пачку до 100 (або 50 мс очікування)
+            і пише одним INSERT ... VALUES (...), (...). Виміряно: 500 одиничних INSERT 459 мс, 5 пачок по 100 рядків 10 мс, прискорення x47.
+          </>
+        }
+      />
+
+      <Card title="300 подій: батчинг у воркері">
+        <div className="prose">
+          <p>
+            300 окремих POST /events, кожен кладе свій job. Тут видно лише час і кількість 202; скільки пачок вийшло, показує лог воркера «Записано пачку
+            подій: N». Замість 300 INSERT там буде кілька пачок по 100 рядків.
+          </p>
+        </div>
+        <NeedAuth />
+        <div className="row">
+          <button type="button" className="primary" onClick={() => void send300()} disabled={!auth.tokens || eventsBusy} data-testid="send-events">
+            {eventsBusy ? 'надсилаю...' : '300 x POST /events'}
+          </button>
+          {events && (
+            <span className="pill" data-testid="events-result">
+              202: <b className="mono">{events.ok}</b> з {events.count} за <b className="mono">{events.ms} мс</b>
+            </span>
+          )}
+        </div>
+        <PanelFooter
+          paths={['src/modules/jobs/batch-collector.ts (збирання пачки)', 'src/modules/jobs/events.processor.ts', 'src/modules/jobs/events.controller.ts (202 і job на подію)']}
+          tries={[
+            <>Запусти npm run bench:batch у корені проєкту і порівняй одиничні INSERT з пачками.</>,
+            <>Зменш concurrency воркера events з 100 до 1 і повтори кнопку: якого розміру тепер пачки в логу?</>,
+          ]}
+        />
+      </Card>
     </>
   );
 }

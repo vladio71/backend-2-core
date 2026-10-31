@@ -4,7 +4,8 @@ import { useRef, useState } from 'react';
 import { apiCall } from '../api/client';
 import { useLatency } from '../hooks/useLatency';
 import { Panel } from '../components/Panel';
-import { Card, Explain, PageTitle, WhereInCode } from '../components/common';
+import { PanelFooter, Topic } from '../components/TopicParts';
+import { Card, NeedAuth, PageTitle } from '../components/common';
 
 interface Timing {
   index: number;
@@ -54,7 +55,7 @@ export function PoolPage() {
     void poll();
     pollRef.current = window.setInterval(() => void poll(), 500);
     try {
-      const res = await latency.track(apiCall('GET', '/demo/pool/slow', { query: { seconds, n }, auth: false }));
+      const res = await latency.track(apiCall('GET', '/demo/pool/slow', { query: { seconds, n } }));
       if (res.ok) setResult(res.body as SlowResponse);
     } finally {
       if (pollRef.current !== null) clearInterval(pollRef.current);
@@ -70,35 +71,51 @@ export function PoolPage() {
   return (
     <>
       <PageTitle title="Пул з'єднань" sub="Чому запити 11-20 чекають і три класичні помилки з пулом" />
-      <Explain>
-        <p>
-          <b>Як це працює на бекенді.</b> Postgres створює процес на кожне з'єднання, тому їх мало (max_connections типово 100). Пул у застосунку тримає
-          DB_POOL_MAX=10 з'єднань відкритими і видає їх запитам по черзі.
-        </p>
-        <p>
-          Коли всі зайняті, новий запит чекає DB_ACQUIRE_TIMEOUT_MS, потім помилка. Демо-ендпоінт запускає n паралельних <code>SELECT pg_sleep(seconds)</code>{' '}
-          і міряє окремо очікування з'єднання і загальний час.
-        </p>
-        <pre>{`запит  1..10: waitedForConnection ~20 мс,   total ~1020 мс
-запит 11..20: waitedForConnection ~1020 мс, total ~2030 мс    <- чекали, поки перші 10 звільнять з'єднання`}</pre>
-        <p>Три класичні помилки:</p>
-        <ol>
-          <li>Довга транзакція: BEGIN, 3 секунди обчислень у Node, COMMIT. З'єднання зайняте, хоча Postgres нічого не робить.</li>
-          <li>Зовнішній HTTP-виклик всередині транзакції: BEGIN, fetch у Stripe на 2 с, COMMIT. Якщо Stripe завис, завис і пул.</li>
-          <li>Пул завеликий: max 100 на кожному з 5 процесів = 500 &gt; max_connections. Більший пул не дає більше паралелізму, ніж є ядер у Postgres.</li>
-        </ol>
-        <WhereInCode paths={['src/modules/pool/pool.controller.ts (/demo/pool/slow)', 'database/data-source-options.ts (DB_POOL_MAX, DB_ACQUIRE_TIMEOUT_MS)']} />
-      </Explain>
+      <Topic
+        what={
+          <>
+            Пул це набір уже відкритих дротів до бази, тобто з'єднань. Відкрити нове з'єднання з Postgres дорого: на сервері народжується окремий процес,
+            іде автентифікація. Тому застосунок відкриває кілька з'єднань один раз і видає їх запитам по черзі. Запит узяв дріт, зробив справу, повернув.
+          </>
+        }
+        when={
+          <>
+            Пул потрібен будь-якому веб-застосунку, і він уже є в драйвері. Питання тільки в розмірі. Більший пул не робить базу швидшою: паралелізм обмежений
+            ядрами Postgres, а решта лише сперечається за CPU. Не роби пул «про запас».
+          </>
+        }
+        how={
+          <>
+            DB_POOL_MAX=10 з'єднань на процес, DB_ACQUIRE_TIMEOUT_MS=10000: стільки запит чекає на вільний дріт, потім помилка. Postgres у docker compose має
+            max_connections=100, а процесів три (api-1, api-2, worker), тож 3 x 10 = 30 з ста. Демо-ендпоінт запускає n паралельних SELECT pg_sleep і міряє окремо
+            очікування з'єднання і загальний час.
+          </>
+        }
+        extra={
+          <>
+            <pre>{`n=20, пул 10, кожен запит спить 1 с:
+запит  1..10: чекав з'єднання ~20 мс,   усього ~1020 мс
+запит 11..20: чекав з'єднання ~1020 мс, усього ~2030 мс    <- стояли в черзі, поки перші 10 звільнять дріт`}</pre>
+            <p>Три класичні помилки:</p>
+            <ol>
+              <li>Довга транзакція: BEGIN, 3 секунди обчислень у Node, COMMIT. Дріт зайнятий, хоча Postgres нічого не робить.</li>
+              <li>Зовнішній виклик усередині транзакції: BEGIN, fetch у платіжний сервіс на 2 с, COMMIT. Завис сервіс, завис і пул.</li>
+              <li>Завеликий пул: max 100 на кожному з 5 процесів дає 500 при max_connections 100. Частина процесів не підключиться взагалі.</li>
+            </ol>
+          </>
+        }
+      />
 
       <Card title="Запустити">
+        <NeedAuth>/demo/pool/slow навмисно займає з'єднання пулу на секунди, тому анонімно його не викликати: інакше будь-хто міг би вичерпати пул і покласти /health.</NeedAuth>
         <div className="prose">
           <p>
-            Пул має 10 з'єднань, а ми запускаємо n запитів по seconds секунд одночасно. "Чекали на з'єднання" це запити, яким не дісталось вільного з'єднання
-            одразу: сіра частина смужки в таймлайні, а waiting у pool stats показує їх кількість у кожен момент.
+            Ніяких підготовок: кнопка сама запускає n запитів по seconds секунд одночасно, а кожні 500 мс питає лічильники пулу. «Чекали на з'єднання» це запити, яким
+            не дісталось вільного дроту одразу: сіра частина смужки в таймлайні, а waiting у лічильниках показує їх кількість у кожен момент.
           </p>
           <p>
-            При n=20 і 1 секунді добре виглядає так: перші 10 без очікування і total близько 1 с, наступні 10 чекають близько 1 с і мають total близько 2 с.
-            Якщо n більше за пул у кілька разів, останні запити можуть не дочекатись і впасти по DB_ACQUIRE_TIMEOUT_MS.
+            Добре при n=20 і 1 с: перші 10 без очікування і з total близько 1 с, наступні 10 чекають близько 1 с і мають total близько 2 с. Постав n=10: чекачів
+            нуль, пул вистачає. Постав n=50: у черзі стоїть 40, wallClock близько 5 с.
           </p>
         </div>
         <div className="row">
@@ -156,6 +173,17 @@ export function PoolPage() {
           </div>
         )}
         <Panel exchange={latency.exchange} busy={latency.busy} />
+        <PanelFooter
+          paths={['src/modules/pool/pool.controller.ts (/demo/pool/slow тільки з JWT і з межами n <= 30, seconds <= 5; /demo/pool/stats)', 'src/modules/database/data-source-options.ts (max, connectionTimeoutMillis)', 'src/modules/config/config.schema.ts (DB_POOL_MAX, DB_ACQUIRE_TIMEOUT_MS)']}
+          tries={[
+            <>
+              Запусти API з DB_POOL_MAX=20 і повтори n=20: таймлайн майже без сірого. Потім DB_POOL_MAX=2: скільки тепер займає wallClock?
+            </>,
+            <>
+              Постав DB_ACQUIRE_TIMEOUT_MS=1000, а в формі seconds=3 і n=20: запити 11-20 не дочекаються дроту, і ендпоінт відповість помилкою замість таймлайну.
+            </>,
+          ]}
+        />
       </Card>
     </>
   );

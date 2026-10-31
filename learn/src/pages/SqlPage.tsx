@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { apiCall } from '../api/client';
 import { useLatency } from '../hooks/useLatency';
 import { Panel } from '../components/Panel';
-import { BarChart, Card, Explain, LineChart, LineSeries, PageTitle, WhereInCode } from '../components/common';
+import { BarChart, Card, LineChart, LineSeries, PageTitle } from '../components/common';
+import { Concept, PanelNotes } from '../components/topic';
 
 interface PerDayRow {
   day: string;
@@ -18,6 +19,13 @@ interface NPlusOneResponse {
   postsReturned: number;
   queryCount: number;
   queries: string[];
+}
+
+function shorten(sql: string): string {
+  const flat = sql.replace(/\s+/g, ' ').trim();
+  const from = flat.indexOf(' FROM ');
+  const tail = from === -1 ? flat : flat.slice(from);
+  return tail.length > 150 ? `${tail.slice(0, 150)}...` : tail;
 }
 
 interface ExplainResponse {
@@ -79,33 +87,39 @@ export function SqlPage() {
   return (
     <>
       <PageTitle title="SQL, N+1 і індекси" sub="Сирий SQL з віконною функцією, N+1 з лічильником, EXPLAIN до і після індексу" />
-      <Explain>
-        <p>
-          <b>Як це працює на бекенді.</b> ORM ховає SQL, але не прибирає його. N+1 не видно у коді (цикл виглядає невинно), видно тільки по кількості запитів,
-          тому бекенд рахує їх логером TypeORM і віддає в полі queryCount.
-        </p>
-        <p>
-          Індекс не "пришвидшує базу", він міняє план: Seq Scan читає всю таблицю, Index Scan іде по дереву до потрібних рядків.{' '}
-          <code>EXPLAIN (ANALYZE, FORMAT JSON)</code> це єдиний спосіб побачити, що реально сталося.
-        </p>
-        <p>
-          Параметр indexed=false не видаляє індекс, а вимикає індексні сканування на одну транзакцію через <code>SET LOCAL enable_indexscan = off</code>.
-          Таблиця events має 200 000 рядків, фільтр по user_id і по created_at за останні 30 днів.
-        </p>
-        <p>Порядок колонок в індексі: спочатку рівність (user_id), потім діапазон (created_at).</p>
-        <WhereInCode paths={['src/modules/database/query-counter.ts', 'queries/n-plus-one.controller.ts', 'queries/explain.controller.ts', 'migrations/...-AddEventsUserCreatedIndex.ts']} />
-      </Explain>
+      <Concept
+        what={
+          <p>
+            Звіт «скільки постів і лайків кожен автор написав за день» це агрегація: з багатьох рядків виходить менше, але підсумкових. SQL робить це одним
+            запитом. Альтернатива, витягти всі пости в Node і порахувати циклом, гірша і по мережі, і по пам'яті.
+          </p>
+        }
+        when={
+          <>
+            <p>
+              Коли відповідь це підсумок (кількість, сума, топ-10), а не сам список: рахуй у базі й віддавай готові числа. Коли ти і так вантажиш усі рядки на
+              екран, агрегація не потрібна.
+            </p>
+            <p>
+              Віконна функція потрібна для «накопиченого», плинного середнього або місця в рейтингу: без неї це був би другий запит або цикл. Якщо звіт рідкісний,
+              але важкий (мільйони рядків), думай про матеріалізоване представлення, а не про ще один індекс.
+            </p>
+          </>
+        }
+        how={
+          <p>
+            Один сирий SQL-запит (ORM тут би заважав). JOIN до users бере ім'я автора замість uuid. GROUP BY день і автор дає один рядок на пару з кількістю постів і
+            сумою лайків. Віконна функція <code>sum(count(*)) OVER (PARTITION BY автор ORDER BY день)</code> додає накопичений підсумок по кожному автору, без
+            другого запиту. У сіді 51 пост за 30 днів, від одного до трьох на день, автори пишуть нерівно: Olena приблизно 27, Taras 15, Iryna 9.
+          </p>
+        }
+      />
 
       <Card title="Звіт posts-per-day: JOIN, GROUP BY, віконна функція" testId="card-report">
         <div className="prose">
           <p>
-            Один запит робить три речі. JOIN: до кожного поста беремо його автора. GROUP BY день + автор: один рядок на пару "день, автор" з кількістю постів і
-            сумою лайків. Віконна функція <code>sum(count(*)) OVER (PARTITION BY автор ORDER BY день)</code>: накопичений підсумок по автору без другого запиту.
-          </p>
-          <p>
-            На що дивитись: колонка runningTotal це накопичена сума саме цього автора, а не всіх разом. У сіді автори пишуть нерівномірно: Olena майже
-            щодня, Iryna рідко, і в один день буває кілька постів. На графіку в кого крива крутіша, той пише частіше; плато означає день без постів.
-            Постав days=30, щоб побачити повну картину.
+            runningTotal у кожному рядку це накопичена кількість постів саме цього автора, а не всіх разом. На графіку крива Olena крутіша за Iryna, бо Olena пише
+            частіше, а плато означає день без постів. Постав days=30, щоб побачити всі 51 пост.
           </p>
         </div>
         <div className="row">
@@ -153,17 +167,46 @@ export function SqlPage() {
           </div>
         )}
         <Panel exchange={report.exchange} busy={report.busy} />
+        <PanelNotes
+          where={['src/modules/queries/posts-per-day.controller.ts (JOIN, GROUP BY, OVER)']}
+          tryItems={[
+            <>Постав days=7: лінії стають коротшими, а runningTotal рахується лише в межах цього вікна, тобто починається знову з 1.</>,
+            <>Наведи курсор на точку графіка: у підказці автор, день і значення.</>,
+          ]}
+        />
       </Card>
+
+      <Concept
+        what={
+          <p>
+            N+1 це коли один запит бере список (30 постів), а потім у циклі на кожен елемент іде ще запит (автор цього поста). Разом 1 + 30 = 31 запит там, де
+            вистачило б двох.
+          </p>
+        }
+        when={
+          <>
+            <p>
+              Вилізає, коли в циклі є await до бази або коли ORM сам підтягує зв'язок при зверненні до поля. У коді це виглядає невинно, і кожен запит швидкий
+              (близько мілісекунди), тому локально на 10 рядках усе добре. На проді 1000 постів це 1001 запит, і на кожен ще мережа та планування.
+            </p>
+            <p>
+              Не варто лякатись, коли елементів завжди три, або це одноразовий скрипт. Лікування: JOIN (relations) або один <code>WHERE id IN (...)</code> замість
+              запиту на кожен елемент.
+            </p>
+          </>
+        }
+        how={
+          <p>
+            Помітити N+1 можна тільки по кількості запитів, не по коду. Тому бекенд рахує їх логером TypeORM і віддає число в полі queryCount, разом з текстом
+            запитів. Дві кнопки нижче повертають ті самі 30 постів з іменами авторів.
+          </p>
+        }
+      />
 
       <Card title="N+1: цикл з findOne проти relations" testId="card-nplusone">
         <div className="prose">
           <p>
-            N+1 це один запит за списком, а потім ще один запит на кожен елемент списку: на 30 постах виходить 31 запит, на 1000 постів 1001. База відповідає
-            швидко на кожен, але мережа і планування запиту платяться щоразу, тому список "раптом" починає гальмувати на реальних даних.
-          </p>
-          <p>
-            Виправлення: взяти авторів одним запитом, через JOIN або <code>WHERE id IN (...)</code>. Нижче обидві кнопки повертають ті самі пости; добре,
-            коли лічильник запитів не росте разом із кількістю постів (2 замість 31).
+            Добре, коли лічильник не росте разом із кількістю постів: 2 замість 31. Під лічильниками видно, що саме полетіло в базу.
           </p>
         </div>
         <div className="row">
@@ -205,16 +248,63 @@ export function SqlPage() {
             height={110}
           />
         )}
+        {slow && (
+          <div className="small" data-testid="slow-queries" style={{ marginTop: 10 }}>
+            <h3>fixed=false: перші запити</h3>
+            <ul className="mono small">
+              {slow.queries.slice(0, 3).map((q, i) => (
+                <li key={i}>{shorten(q)}</li>
+              ))}
+            </ul>
+            <div className="muted small">... і ще {Math.max(0, slow.queries.length - 3)} таких самих запитів по users, різниця тільки в id у WHERE.</div>
+          </div>
+        )}
         <Panel exchange={nplus.exchange} busy={nplus.busy} />
+        <PanelNotes
+          where={['src/modules/queries/n-plus-one.controller.ts', 'src/modules/database/query-counter.ts (рахує запити логером TypeORM)']}
+          tryItems={[
+            <>Натисни обидві кнопки й порівняй queryCount: 31 і 2.</>,
+            <>
+              Постав <code>DB_LOG_QUERIES=true</code>, перезапусти API, натисни fixed=false і подивись у термінал: 31 рядок SQL за один HTTP-запит.
+            </>,
+          ]}
+        />
       </Card>
+
+      <Concept
+        what={
+          <p>
+            Індекс це окрема впорядкована структура, як зміст у книзі: Postgres знаходить по ній потрібні рядки, не читаючи всю таблицю. EXPLAIN ANALYZE питає
+            базу, як вона виконала запит: Seq Scan означає, що прочитано всю таблицю, Index Scan, що пішли по індексу.
+          </p>
+        }
+        when={
+          <>
+            <p>
+              Індекс потрібен колонкам, за якими часто фільтруєш чи сортуєш у великій таблиці. Не потрібен на малій таблиці: на 51 пості Seq Scan швидший за індекс.
+              І не потрібен колонці, яку рідко читають, але часто пишуть: кожен індекс сповільнює INSERT і UPDATE та займає місце.
+            </p>
+            <p>
+              У складеному індексі спочатку колонки з рівністю (user_id), потім діапазон (created_at). Не вгадуй, чи індекс допоміг: дивись EXPLAIN.
+            </p>
+          </>
+        }
+        how={
+          <p>
+            Таблиця events має 200 000 рядків від 1000 різних user_id, по 200 на користувача. Запит бере події одного user_id за останні 30 днів і знаходить близько
+            сотні. Параметр indexed=false не видаляє індекс, а вимикає індексні сканування на одну транзакцію (<code>SET LOCAL enable_indexscan = off</code>). Так
+            обидва запити йдуть на одних і тих самих даних, і порівняння чесне.
+          </p>
+        }
+      />
 
       <Card title="EXPLAIN: без індексу і з індексом" testId="card-explain">
         <div className="prose">
           <p>
-            Той самий запит до таблиці events на 200 000 рядків, двічі: з вимкненими індексними скануваннями і з індексом. Дивись на Node Type: Seq Scan
-            означає, що Postgres прочитав усю таблицю, Index Scan означає, що пішов по індексу одразу до потрібних рядків.
+            Той самий запит двічі. Добре: однаковий rows в обох рядках (результат той самий) і Execution Time у десятки і сотні разів менший з індексом. У другому рядку
+            Postgres може показати Index Only Scan: усе потрібне лежить в самому індексі, і таблицю взагалі не читають. Погано: Seq Scan на запиті, який
+            виконується часто.
           </p>
-          <p>Добре: однаковий rows в обох рядках (результат той самий) і Execution Time у рази менший з індексом. Погано: Seq Scan на запиті, який виконується часто.</p>
         </div>
         <div className="row">
           <button type="button" className="danger" onClick={() => void runExplain(false)} disabled={explain.busy} data-testid="explain-seq">
@@ -271,6 +361,16 @@ export function SqlPage() {
           </div>
         )}
         <Panel exchange={explain.exchange} busy={explain.busy} />
+        <PanelNotes
+          where={['src/modules/queries/explain.controller.ts (SET LOCAL enable_indexscan = off)', 'src/migrations/1700000000003-AddEventsUserCreatedIndex.ts']}
+          tryItems={[
+            <>Натисни кожну кнопку двічі: Execution Time плаває, але порядок величин не змінюється. Перший запуск може бути повільнішим через холодний кеш.</>,
+            <>
+              Виконай <code>npm run migration:revert</code> і натисни indexed=true: тепер теж Seq Scan, бо індексу немає. <code>npm run migration:run</code> повертає
+              його.
+            </>,
+          ]}
+        />
       </Card>
     </>
   );

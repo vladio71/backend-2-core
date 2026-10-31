@@ -156,31 +156,29 @@ try {
   else fail('pool', `waited=${waited}`);
   await shot(page, '12-pool');
 
-  // 7. Кредити: логін admin (topup дозволений тільки admin), поповнення на 50, 20 паралельних reserve(10).
-  await page.goto(`${LEARN_URL}/start`);
-  await waitApi(page);
-  await page.fill('[data-testid="email"]', 'admin@devhub.local');
-  await page.click('[data-testid="login"]');
-  await page.waitForFunction(() => document.querySelector('[data-testid="auth-status"]')?.textContent?.includes('admin@devhub.local'));
+  // 7. Кредити: будь-який користувач. Кожна кнопка сама скидає баланс до 100 (POST /credits/demo/reset), потім 20 паралельних reserve(10).
   await page.goto(`${LEARN_URL}/credits`);
   await waitApi(page);
-  await page.waitForSelector('[data-testid="balance-value"]');
-  const readBalance = async () => Number((await page.textContent('[data-testid="balance-value"]'))?.match(/balance (\d+)/)?.[1]);
-  const before = await readBalance();
-  await page.click('[data-testid="topup"]');
-  await page.waitForFunction((b) => Number(document.querySelector('[data-testid="balance-value"]')?.textContent?.match(/balance (\d+)/)?.[1]) === b + 50, before);
-  const afterTopup = await readBalance();
-  ok('credits.topup', `баланс ${before} -> ${afterTopup} після POST /credits/topup { amount: 50 }`);
   await page.click('[data-testid="reserve20"]');
   await page.waitForSelector('[data-testid="count-201"]');
-  await page.waitForFunction((b) => Number(document.querySelector('[data-testid="balance-value"]')?.textContent?.match(/balance (\d+)/)?.[1]) < b, afterTopup);
-  const c201 = Number(await page.textContent('[data-testid="count-201"]'));
-  const c422 = Number(await page.textContent('[data-testid="count-422"]'));
-  const finalBalance = Number(await page.textContent('[data-testid="final-balance"]'));
-  const expected201 = Math.min(20, Math.floor(afterTopup / 10));
-  if (c201 === expected201 && c201 + c422 === 20 && finalBalance === afterTopup - c201 * 10) {
-    ok('credits.parallel', `баланс ${afterTopup}: 201: ${c201}, 422: ${c422}, баланс після ${finalBalance} (жодне списання не загублене)`);
-  } else fail('credits.parallel', `очікував 201=${expected201}, отримав ${c201}/${c422}, баланс ${finalBalance}`);
+  const num = async (id) => Number(await page.textContent(`[data-testid="${id}"]`));
+  const c201 = await num('count-201');
+  const c422 = await num('count-422');
+  const finalBalance = await num('final-balance');
+  if (c201 === 10 && c422 === 10 && finalBalance === 0) ok('credits.lock', `з локом: 201: ${c201}, 422: ${c422}, баланс після ${finalBalance}`);
+  else fail('credits.lock', `очікував 10/10/0, отримав ${c201}/${c422}, баланс ${finalBalance}`);
+  await page.click('[data-testid="reserve20-unsafe"]');
+  await page.waitForSelector('[data-testid="unsafe-count-201"]');
+  const u201 = await num('unsafe-count-201');
+  const uBalance = await num('unsafe-final-balance');
+  if (u201 > 10 && 100 - uBalance < u201 * 10) ok('credits.unsafe', `без локу: 201: ${u201} (більше за 10), списано ${100 - uBalance} замість ${u201 * 10}`);
+  else fail('credits.unsafe', `201: ${u201}, баланс ${uBalance}`);
+  await page.click('[data-testid="hold-confirm"]');
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="hold-steps"] tbody tr').length === 4, null, { timeout: 15000 });
+  const holdStatuses = await page.$$eval('[data-testid="hold-steps"] .badge', (els) => els.map((e) => e.textContent));
+  if (holdStatuses.join(',') === '201,201,201,409') ok('credits.hold', `reset, reserve, confirm, повторна дія: ${holdStatuses.join(',')}`);
+  else fail('credits.hold', holdStatuses.join(','));
+  await page.locator('[data-testid="reserve20"]').scrollIntoViewIfNeeded();
   await shot(page, '09-credits');
   // Назад до olena для решти сторінок.
   await page.goto(`${LEARN_URL}/start`);
@@ -196,8 +194,19 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('[data-testid="shots"] tbody tr').length === 15, null, { timeout: 30000 });
   const statuses = await page.$$eval('[data-testid="shots"] tbody tr td:nth-child(3)', (els) => els.map((e) => e.textContent));
   const n429 = statuses.filter((s) => s === '429').length;
-  if (n429 >= 4) ok('ratelimit', `статуси: ${statuses.join(',')}`);
+  if (n429 === 5) ok('ratelimit', `статуси: ${statuses.join(',')}`);
   else fail('ratelimit', statuses.join(','));
+  await page.click('[data-testid="send-boundary"]');
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="shots"] tbody tr').length === 20, null, { timeout: 30000 });
+  const boundary = await page.$$eval('[data-testid="shots"] tbody tr td:nth-child(3)', (els) => els.map((e) => e.textContent));
+  const boundaryOk = boundary.slice(0, 10).every((x) => x === '201') && boundary.slice(10).filter((x) => x === '201').length <= 2;
+  if (boundaryOk) ok('ratelimit.boundary', `10 + пауза 1 с + 10: ${boundary.filter((x) => x === '201').length} з 20 пройшли`);
+  else fail('ratelimit.boundary', boundary.join(','));
+  await page.click('[data-testid="fixed-window"]');
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="fixed-dots"] .dot').length === 20 && document.querySelector('[data-testid="fixed-window"]')?.textContent?.startsWith('Показати'), null, { timeout: 60000 });
+  const fixedText = (await page.textContent('[data-testid="fixed-result"]')) ?? '';
+  if (/пройшло 20 з 20/.test(fixedText)) ok('ratelimit.fixedWindow', fixedText.replace(/\s+/g, ' '));
+  else fail('ratelimit.fixedWindow', fixedText);
   await shot(page, '13-ratelimit');
 
   // 9. GitHub (без токена і, можливо, без мережі: перевіряємо тільки, що сторінка обробляє відповідь)
@@ -237,6 +246,14 @@ try {
   );
   const cols = await page.$$eval('.cols-3 .col', (els) => els.map((e) => e.textContent?.replace(/\s+/g, ' ')));
   ok('queue.three', cols.slice(0, 3).map((c) => c?.slice(0, 90)).join(' | '));
+  await page.click('[data-testid="flood"]');
+  await page.waitForSelector('[data-testid="flood-restored"]', { timeout: 60000 });
+  const accepted = Number(await page.textContent('[data-testid="flood-202"]'));
+  const rejected = Number(await page.textContent('[data-testid="flood-429"]'));
+  const floodText = `202: ${accepted}, 429: ${rejected}`;
+  const restored = (await page.textContent('[data-testid="flood-restored"]')) ?? '';
+  if (accepted >= 100 && accepted < 120 && rejected > 0 && restored.includes('waiting тепер 0')) ok('queue.flood', `${floodText}; ${restored.slice(0, 60)}`);
+  else fail('queue.flood', `${floodText}; ${restored}`);
   await page.click('[data-testid="send-events"]');
   await page.waitForSelector('[data-testid="events-result"]', { timeout: 60000 });
   ok('queue.events', (await page.textContent('[data-testid="events-result"]')) ?? '');

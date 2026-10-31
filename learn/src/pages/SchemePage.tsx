@@ -52,14 +52,13 @@ export function SchemePage() {
       </div>
 
       <details className="scheme-details">
-        <summary>Як читати схему і де лежить файл</summary>
+        <summary>Як читати схему</summary>
         <p>
-          Браузер (цей фронтенд) ходить у nginx, nginx по черзі віддає запити двом інстансам API, API пише у PostgreSQL і Redis, довгі задачі кладе у чергу, а
-          окремий процес воркера їх виконує. Порядок тем у меню іде від того, без чого запит не обробиться взагалі (конфіг, помилки, база), до того, що потрібно
-          під навантаженням (кеш, локи, черга, метрики).
+          Браузер ходить у nginx, nginx по черзі віддає запити двом API, API пишуть у PostgreSQL і Redis, довгі задачі кладуть у чергу, а окремий воркер їх виконує.
+          Порядок тем у меню іде від того, без чого запит не обробиться, до того, що потрібно під навантаженням.
         </p>
         <p className="muted small">
-          Той самий файл лежить у <code>docs/architecture.excalidraw</code>, відкрити для редагування можна на{' '}
+          Файл лежить у <code>docs/architecture.excalidraw</code>, редагувати можна на{' '}
           <a href="https://excalidraw.com" target="_blank" rel="noreferrer">
             excalidraw.com
           </a>

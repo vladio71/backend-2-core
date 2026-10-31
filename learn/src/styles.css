@@ -1088,3 +1088,35 @@ canvas.board {
 .metrics-table td.mono {
   word-break: break-all;
 }
+
+/* ---------- Тема: підзаголовки пояснення і підвал панелі ---------- */
+
+.explain > h3 {
+  margin-top: 1.4em;
+}
+
+.explain > h3:first-child {
+  margin-top: 0;
+}
+
+.panel-notes {
+  border-top: 1px solid var(--border);
+  margin-top: 18px;
+  padding-top: 4px;
+}
+
+.panel-notes .where,
+.panel-notes .try {
+  max-width: var(--measure);
+}
+
+/* Підзаголовки всередині блоку теми (Що це / Коли / Як тут зроблено). */
+.explain h3 {
+  font-size: 15px;
+  font-weight: 650;
+  margin: 14px 0 4px;
+  color: var(--accent);
+}
+.explain h3:first-child {
+  margin-top: 0;
+}
