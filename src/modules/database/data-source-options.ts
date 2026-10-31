@@ -1,22 +1,16 @@
 // Що це: одна функція, яка будує опції TypeORM і для застосунку, і для CLI міграцій (src/data-source.ts).
 // Чому: щоб застосунок і CLI не розійшлися у списку сутностей чи міграцій.
-import { DataSourceOptions } from 'typeorm';
+// Список сутностей сюди ПЕРЕДАЮТЬ (src/entities.ts): database нижній шар і не імпортує нічого з feature-модулів.
+import { DataSourceOptions, EntitySchema } from 'typeorm';
 import { AppConfig } from '../config/config.schema';
 import { QueryCountingLogger } from './query-counter';
-import { User } from '../users/user.entity';
-import { RefreshToken } from '../auth/refresh-token.entity';
-import { Post } from '../posts/post.entity';
-import { Activity } from '../posts/activity.entity';
-import { Event } from '../queries/event.entity';
-import { CreditBalance } from '../credits/credit-balance.entity';
-import { CreditReservation } from '../credits/credit-reservation.entity';
-import { GithubRepo } from '../github/github-repo.entity';
-import { Report } from '../jobs/report.entity';
 import { migrations } from '../../migrations';
 
-export const entities = [User, RefreshToken, Post, Activity, Event, CreditBalance, CreditReservation, GithubRepo, Report];
+// Клас сутності (User, Post, ...) або EntitySchema: те, що TypeORM приймає в опції entities.
+export type EntityClass = new (...args: never[]) => object;
+export type EntityList = Array<EntityClass | EntitySchema>;
 
-export function buildDataSourceOptions(config: AppConfig): DataSourceOptions {
+export function buildDataSourceOptions(config: AppConfig, entities: EntityList): DataSourceOptions {
   return {
     type: 'postgres',
     url: config.DATABASE_URL,

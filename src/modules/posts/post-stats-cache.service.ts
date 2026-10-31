@@ -1,5 +1,6 @@
 // Що це: кеш дорогої статистики поста в Redis. TTL 60 с + інвалідація при записі.
 // Чому обидва: TTL рятує, якщо хтось забув інвалідувати; інвалідація дає свіжі дані одразу після зміни.
+// Живе у posts, а не у queries: інакше posts імпортував би queries, а queries вже імпортує Post (цикл між модулями).
 // Хто викликає: StatsController (читає), PostsService (інвалідує після update/delete/publish).
 import { Inject, Injectable } from '@nestjs/common';
 import Redis from 'ioredis';

@@ -6,6 +6,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, APP_CONFIG } from './modules/config/config.module';
 import { AppConfig } from './modules/config/config.schema';
 import { DatabaseModule } from './modules/database/database.module';
+import { entities } from './entities';
 import { RedisModule } from './modules/redis/redis.module';
 import { JobsWorkerModule } from './modules/jobs/jobs-worker.module';
 import { MetricsWorkerModule } from './modules/metrics/metrics.module';
@@ -14,7 +15,7 @@ import { redisConnectionFromUrl } from './modules/redis/redis-connection';
 @Module({
   imports: [
     ConfigModule,
-    DatabaseModule,
+    DatabaseModule.forRoot(entities),
     RedisModule,
     BullModule.forRootAsync({
       inject: [APP_CONFIG],

@@ -1,9 +1,9 @@
 import { PostsService, decodeCursor, encodeCursor } from './posts.service';
 import { Repository, DataSource } from 'typeorm';
 import { Post } from './post.entity';
-import { PostStatsCache } from '../queries/post-stats-cache.service';
+import { PostStatsCache } from './post-stats-cache.service';
 import { AccessTokenPayload } from '../auth/jwt.service';
-import { PostEmbeddingsService } from '../ai/post-embeddings.service';
+import { PostIndexer } from './post-indexer';
 
 // Unit-тест: репозиторій і кеш замінені фейками. Перевіряємо правила, а не SQL.
 describe('PostsService (unit)', () => {
@@ -19,7 +19,7 @@ describe('PostsService (unit)', () => {
     } as unknown as Repository<Post>;
     const cache = { invalidate: jest.fn() } as unknown as PostStatsCache;
     const ds = {} as DataSource;
-    const embeddings = { indexPost: jest.fn() } as unknown as PostEmbeddingsService;
+    const embeddings: PostIndexer = { indexPost: jest.fn() };
     return { svc: new PostsService(repo, ds, cache, embeddings), repo, cache };
   }
 

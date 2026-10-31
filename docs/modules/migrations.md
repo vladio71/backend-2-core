@@ -25,6 +25,7 @@ npm run migration:generate src/migrations/NazvaZminy   # згенерувати 
 - `src/migrations/*.ts` і `src/migrations/index.ts` (список).
 - `src/data-source.ts`: DataSource для CLI.
 - `src/modules/database/data-source-options.ts`: спільні опції для CLI і застосунку.
+- `src/entities.ts`: список сутностей. Його передають у `DatabaseModule.forRoot(entities)` і у CLI, щоб `database` не імпортував feature-модулі.
 - `test/int/migrations.int-spec.ts`: revert прибирає індекс, run повертає.
 
 ## Спробуй сам

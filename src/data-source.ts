@@ -4,5 +4,6 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { loadConfig } from './modules/config/config.module';
 import { buildDataSourceOptions } from './modules/database/data-source-options';
+import { entities } from './entities';
 
-export default new DataSource(buildDataSourceOptions(loadConfig()));
+export default new DataSource(buildDataSourceOptions(loadConfig(), entities));

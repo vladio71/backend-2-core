@@ -1,6 +1,6 @@
-// Що це: імена черг і типи даних job-ів. Одне місце, щоб API і воркер не розійшлися.
-export const REPORTS_QUEUE = 'reports';
-export const EVENTS_QUEUE = 'events';
+// Що це: типи даних job-ів і канал подій. Одне місце, щоб API і воркер не розійшлися.
+// Імена черг живуть у src/common/queues.ts (їх читає ще й metrics), тут лише реекспорт для зручності.
+export { REPORTS_QUEUE, EVENTS_QUEUE } from '../../common/queues';
 
 // Канал Redis pub/sub, у який воркер публікує зміни статусу звіту. API підписаний і роздає далі (SSE, WebSocket).
 export const REPORT_EVENTS_CHANNEL = 'devhub:report-events';

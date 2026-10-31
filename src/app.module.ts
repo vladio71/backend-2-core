@@ -9,6 +9,7 @@ import { AppConfig } from './modules/config/config.schema';
 import { LoggingModule } from './modules/logging/logging.module';
 import { RequestIdMiddleware } from './modules/logging/request-id.middleware';
 import { DatabaseModule } from './modules/database/database.module';
+import { entities } from './entities';
 import { RedisModule } from './modules/redis/redis.module';
 import { HealthModule } from './modules/health/health.module';
 import { UsersModule } from './modules/users/users.module';
@@ -31,7 +32,7 @@ import { redisConnectionFromUrl } from './modules/redis/redis-connection';
   imports: [
     ConfigModule,
     LoggingModule,
-    DatabaseModule,
+    DatabaseModule.forRoot(entities),
     RedisModule,
     ScheduleModule.forRoot(),
     BullModule.forRootAsync({

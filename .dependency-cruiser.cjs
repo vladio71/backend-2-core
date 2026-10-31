@@ -12,6 +12,28 @@ module.exports = {
       to: { circular: true },
     },
     {
+      // Ідея: нижній шар не знає про верхній. config, logging, errors, database, redis це фундамент, яким
+      // користуються всі теми (posts, jobs, auth, ...). Якщо фундамент імпортує щось із теми, стрілка йде
+      // вгору і будь-яка тема починає тягнути за собою весь застосунок. Список сутностей тому живе у src/entities.ts,
+      // а не у database.
+      name: 'infra-does-not-know-features',
+      severity: 'error',
+      comment: 'Інфраструктурний модуль (config, logging, errors, database, redis) імпортує feature-модуль. Залежність має йти згори вниз: передай потрібне параметром або з кореня (src/entities.ts).',
+      from: { path: '^src/modules/(database|redis|config|logging|errors)/' },
+      to: { path: '^src/modules/', pathNot: '^src/modules/(database|redis|config|logging|errors)/' },
+    },
+    {
+      // Та сама ідея на рівні каталогів модулів: між двома модулями стрілка йде лише в один бік.
+      // no-circular вище ловить цикли між файлами, а цей між каталогами (posts/* <-> queries/*), які файл за файлом
+      // можуть бути ациклічними, але модулі все одно залежать один від одного.
+      name: 'no-module-cycles',
+      severity: 'error',
+      comment: 'Цикл між модулями (каталогами src/modules/*). Винеси спільне у третій модуль або передай залежність через DI-токен, щоб стрілка йшла в один бік.',
+      scope: 'folder',
+      from: { path: '^src/modules/[^/]+$' },
+      to: { path: '^src/modules/[^/]+$', circular: true },
+    },
+    {
       name: 'no-src-to-test',
       severity: 'error',
       comment: 'Код застосунку не має залежати від тестів: test/ не потрапляє у dist і у production.',

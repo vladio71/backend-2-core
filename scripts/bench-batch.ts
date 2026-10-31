@@ -4,6 +4,7 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { loadConfig } from '../src/modules/config/config.module';
 import { buildDataSourceOptions } from '../src/modules/database/data-source-options';
+import { entities } from '../src/entities';
 
 const TOTAL = 500;
 const BATCH = 100;
@@ -32,7 +33,7 @@ async function batched(ds: DataSource): Promise<number> {
 }
 
 async function main(): Promise<void> {
-  const ds = new DataSource(buildDataSourceOptions(loadConfig()));
+  const ds = new DataSource(buildDataSourceOptions(loadConfig(), entities));
   await ds.initialize();
   await ds.query(`DELETE FROM events WHERE user_id = $1`, [USER]);
   const runs = 3;

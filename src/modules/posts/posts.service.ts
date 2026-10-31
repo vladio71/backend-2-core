@@ -1,7 +1,7 @@
 // Що це: бізнес-логіка постів: CRUD, список з фільтрами і двома пагінаціями, м'яке видалення, publish у транзакції.
 // Чому: контролер не знає про SQL, репозиторій не знає про права. Усе "кому можна" живе тут.
 // Хто викликає: PostsController, AiController (moderate), seed.
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 import { Post, PostStatus } from './post.entity';
@@ -11,8 +11,8 @@ import { UpdatePostDto } from './dto/update-post.dto';
 import { ListPostsDto, PostSortField } from './dto/list-posts.dto';
 import { ConflictError, ForbiddenError, NotFoundError } from '../errors/domain-errors';
 import { AccessTokenPayload } from '../auth/jwt.service';
-import { PostStatsCache } from '../queries/post-stats-cache.service';
-import { PostEmbeddingsService } from '../ai/post-embeddings.service';
+import { PostStatsCache } from './post-stats-cache.service';
+import { POST_INDEXER, PostIndexer } from './post-indexer';
 
 export interface OffsetPage {
   items: Post[];
@@ -57,7 +57,7 @@ export class PostsService {
     @InjectRepository(Post) private readonly posts: Repository<Post>,
     private readonly dataSource: DataSource,
     private readonly statsCache: PostStatsCache,
-    private readonly embeddings: PostEmbeddingsService,
+    @Inject(POST_INDEXER) private readonly embeddings: PostIndexer,
   ) {}
 
   async create(author: AccessTokenPayload, dto: CreatePostDto): Promise<Post> {

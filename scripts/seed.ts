@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { DataSource } from 'typeorm';
 import { loadConfig } from '../src/modules/config/config.module';
 import { buildDataSourceOptions } from '../src/modules/database/data-source-options';
+import { entities } from '../src/entities';
 import { User } from '../src/modules/users/user.entity';
 import { Post } from '../src/modules/posts/post.entity';
 import { FakeEmbeddingProvider } from '../src/modules/ai/embedding.provider';
@@ -112,7 +113,7 @@ async function vectorColumnExists(dataSource: DataSource): Promise<boolean> {
 }
 
 if (require.main === module) {
-  const dataSource = new DataSource(buildDataSourceOptions(loadConfig()));
+  const dataSource = new DataSource(buildDataSourceOptions(loadConfig(), entities));
   dataSource
     .initialize()
     .then(() => runSeed(dataSource))

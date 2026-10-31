@@ -1,7 +1,7 @@
 // Що це: запис ембедингу поста і пошук схожих через pgvector (оператор <-> = евклідова відстань).
 // Чому окремий сервіс: колонка embedding не описана в TypeORM-сутності (TypeORM не знає тип vector),
 // тому працюємо сирим SQL. На старті перевіряємо, чи є розширення; без нього методи чесно кажуть "недоступно".
-// Хто викликає: PostsService (indexPost після створення/оновлення), AiController (GET /posts/similar).
+// Хто викликає: PostsService через токен POST_INDEXER (indexPost після створення/оновлення), AiController (GET /posts/similar).
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { EMBEDDING_PROVIDER, EmbeddingProvider } from './embedding.provider';

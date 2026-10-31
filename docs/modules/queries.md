@@ -44,7 +44,7 @@ ORM ховає SQL, але не прибирає його. N+1 не видно �
 - `src/modules/queries/posts-per-day.controller.ts`.
 - `src/modules/queries/n-plus-one.controller.ts` + `src/modules/database/query-counter.ts`.
 - `src/modules/queries/explain.controller.ts` + `src/migrations/1700000000003-AddEventsUserCreatedIndex.ts`.
-- `src/modules/queries/post-stats-cache.service.ts`, `stats.controller.ts`; інвалідація в `src/modules/posts/posts.service.ts`.
+- `src/modules/posts/post-stats-cache.service.ts`, `src/modules/posts/stats.controller.ts`; інвалідація в `src/modules/posts/posts.service.ts`. Кеш лежить у posts, а не тут, бо queries імпортує сутність Post, і зустрічний імпорт дав би цикл між модулями.
 - `test/int/sql.int-spec.ts`: running_total, EXPLAIN з індексом і без, UTC.
 
 ## Спробуй сам

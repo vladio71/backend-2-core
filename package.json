@@ -15,7 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test scripts",
     "deps:check": "depcruise src --config .dependency-cruiser.cjs",
-    "graph": "depcruise src --config .dependency-cruiser.cjs --output-type archi --include-only \"^src\" | dot -Tsvg -o docs/graphs/modules.svg",
+    "graph": "depcruise src --config .dependency-cruiser.cjs --output-type json --include-only \"^src\" | node scripts/graph-modules.mjs | dot -Tsvg -o docs/graphs/modules.svg",
     "graph:files": "depcruise src --config .dependency-cruiser.cjs --output-type dot --include-only \"^src\" | dot -Tsvg -o docs/graphs/files.svg",
     "docs:code": "compodoc -p tsconfig.build.json -d docs/compodoc -n \"devhub-core\" --disableCoverage --disableDomTree --disableTemplateTab --disableStyleTab",
     "start": "node --env-file-if-exists=.env dist/main.js",

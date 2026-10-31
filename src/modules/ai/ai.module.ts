@@ -1,7 +1,9 @@
 // Що це: модуль AI. Обирає провайдерів за env: є OPENAI_API_KEY -> OpenAI, нема -> фейки.
-import { Module } from '@nestjs/common';
+// @Global, щоб PostsService міг інжектити POST_INDEXER без імпорту AiModule (ai імпортує Post, зустрічний імпорт дав би цикл).
+import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Post } from '../posts/post.entity';
+import { POST_INDEXER } from '../posts/post-indexer';
 import { APP_CONFIG } from '../config/config.module';
 import { AppConfig } from '../config/config.schema';
 import { LLM_PROVIDER, LlmProvider } from './llm.provider';
@@ -14,6 +16,7 @@ import { PostEmbeddingsService } from './post-embeddings.service';
 import { AiController } from './ai.controller';
 import { AuthModule } from '../auth/auth.module';
 
+@Global()
 @Module({
   imports: [TypeOrmModule.forFeature([Post]), AuthModule],
   controllers: [AiController],
@@ -36,7 +39,9 @@ import { AuthModule } from '../auth/auth.module';
     },
     ModerationService,
     PostEmbeddingsService,
+    // Реалізація інтерфейсу PostIndexer з модуля posts: той самий екземпляр PostEmbeddingsService під іншим токеном.
+    { provide: POST_INDEXER, useExisting: PostEmbeddingsService },
   ],
-  exports: [PostEmbeddingsService],
+  exports: [PostEmbeddingsService, POST_INDEXER],
 })
 export class AiModule {}

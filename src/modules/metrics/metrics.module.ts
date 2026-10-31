@@ -7,7 +7,7 @@
 // e2e-тести піднімають AppModule + JobsWorkerModule, тому там працює варіант для API (сервер воркера не стартує).
 import { Global, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import { EVENTS_QUEUE, REPORTS_QUEUE } from '../jobs/queues';
+import { EVENTS_QUEUE, REPORTS_QUEUE } from '../../common/queues';
 import { MetricsController } from './metrics.controller';
 import { MetricsMiddleware } from './metrics.middleware';
 import { MetricsService } from './metrics.service';

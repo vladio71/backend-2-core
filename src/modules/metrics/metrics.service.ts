@@ -12,7 +12,7 @@ import { DataSource } from 'typeorm';
 import { PostgresDriver } from 'typeorm/driver/postgres/PostgresDriver';
 import { APP_CONFIG } from '../config/config.module';
 import { AppConfig } from '../config/config.schema';
-import { EVENTS_QUEUE, REPORTS_QUEUE } from '../jobs/queues';
+import { EVENTS_QUEUE, REPORTS_QUEUE } from '../../common/queues';
 import { AppLogger } from '../logging/app-logger';
 
 // Стани job-у у BullMQ, які показуємо як окремі серії bullmq_queue_jobs{state=...}.

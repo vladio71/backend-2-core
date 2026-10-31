@@ -11,13 +11,14 @@ import { AppModule } from '../../src/app.module';
 import { JobsWorkerModule } from '../../src/modules/jobs/jobs-worker.module';
 import { loadConfig } from '../../src/modules/config/config.module';
 import { buildDataSourceOptions } from '../../src/modules/database/data-source-options';
+import { entities } from '../../src/entities';
 import { setupApp } from '../../src/app-setup';
 import { AppLogger } from '../../src/modules/logging/app-logger';
 
 export const config = loadConfig();
 
 export async function resetDatabase(): Promise<DataSource> {
-  const ds = new DataSource(buildDataSourceOptions(config));
+  const ds = new DataSource(buildDataSourceOptions(config, entities));
   await ds.initialize();
   await ds.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
   await ds.runMigrations();
