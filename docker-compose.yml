@@ -131,7 +131,10 @@ services:
       # Контекст: корінь, бо learn/Dockerfile бере ще docs/architecture.excalidraw для сторінки "Схема проєкту".
       context: .
       dockerfile: learn/Dockerfile
-      args: { VITE_API_URL: "http://localhost:${GATEWAY_PORT:-8080}" }
+      args:
+        VITE_API_URL: "http://localhost:${GATEWAY_PORT:-8080}"
+        VITE_JAEGER_URL: "http://localhost:${JAEGER_PORT:-16686}"
+        VITE_GRAFANA_URL: "http://localhost:${GRAFANA_PORT:-3001}"
     ports:
       - "${LEARN_PORT:-5173}:5173"
     depends_on:

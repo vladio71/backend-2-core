@@ -105,8 +105,9 @@ export function ObservabilityPage() {
     setLines(pickInteresting(parsed));
   }
 
-  const grafanaUrl = 'http://localhost:3001';
-  const jaegerUrl = 'http://localhost:16686';
+  // Порти можуть відрізнятись від типових, якщо npm run up узяв наступний вільний: тоді вони приходять зі збірки.
+  const grafanaUrl = (import.meta.env.VITE_GRAFANA_URL as string | undefined) ?? 'http://localhost:3001';
+  const jaegerUrl = (import.meta.env.VITE_JAEGER_URL as string | undefined) ?? 'http://localhost:16686';
 
   return (
     <>
@@ -135,7 +136,7 @@ export function ObservabilityPage() {
               <td>
                 Prometheus :9090, Grafana{' '}
                 <a href={grafanaUrl} target="_blank" rel="noreferrer">
-                  :3001
+                  {grafanaUrl.replace('http://localhost', '')}
                 </a>{' '}
                 (дашборд devhub)
               </td>
@@ -146,7 +147,7 @@ export function ObservabilityPage() {
               <td>
                 Jaeger{' '}
                 <a href={jaegerUrl} target="_blank" rel="noreferrer">
-                  :16686
+                  {jaegerUrl.replace('http://localhost', '')}
                 </a>
               </td>
             </tr>

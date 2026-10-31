@@ -8,7 +8,9 @@ RUN npm ci
 COPY learn/ ./
 COPY docs/architecture.excalidraw /app/docs/architecture.excalidraw
 ARG VITE_API_URL=http://localhost:8080
-ENV VITE_API_URL=$VITE_API_URL
+ARG VITE_JAEGER_URL=http://localhost:16686
+ARG VITE_GRAFANA_URL=http://localhost:3001
+ENV VITE_API_URL=$VITE_API_URL VITE_JAEGER_URL=$VITE_JAEGER_URL VITE_GRAFANA_URL=$VITE_GRAFANA_URL
 RUN npm run build
 
 FROM nginx:1.27-alpine

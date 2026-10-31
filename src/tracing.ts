@@ -39,7 +39,18 @@ if (endpoint) {
     serviceName: process.env.OTEL_SERVICE_NAME ?? process.env.INSTANCE_NAME ?? 'devhub',
     // Куди слати: OTLP/HTTP, url береться з OTEL_EXPORTER_OTLP_ENDPOINT + /v1/traces.
     traceExporter: new OTLPTraceExporter(),
-    instrumentations: [getNodeAutoInstrumentations()],
+    instrumentations: [
+      getNodeAutoInstrumentations({
+        // /health і /metrics дергають healthcheck Docker і Prometheus щокілька секунд: без фільтра вони забивають
+        // список трейсів у Jaeger, і корисні запити губляться серед них.
+        '@opentelemetry/instrumentation-http': {
+          ignoreIncomingRequestHook: (req) => {
+            const url = req.url ?? '';
+            return url === '/health' || url.startsWith('/health?') || url === '/metrics' || url.startsWith('/metrics?');
+          },
+        },
+      }),
+    ],
   });
   sdk.start();
   process.stdout.write(`[tracing] увімкнено, span-и йдуть на ${endpoint}\n`);
